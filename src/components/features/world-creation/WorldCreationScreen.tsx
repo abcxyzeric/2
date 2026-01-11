@@ -47,11 +47,31 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
     }
   }, [initialData]);
 
-  // --- AI Helper Function ---
-  const handleAiGenerate = async (field: string, contextType: string) => {
+  // --- AI Helper Function (UPDATED WITH VALIDATION) ---
+  const handleAiGenerate = async (field: string, category: 'player' | 'world') => {
+    // 1. Validation Logic
+    if (category === 'player') {
+        const { name, gender, age } = state.player;
+        if (!name || !gender || !age) {
+            alert("⚠️ Vui lòng nhập đầy đủ: Tên, Giới tính và Tuổi trước khi sử dụng gợi ý!");
+            return;
+        }
+    } else if (category === 'world') {
+        if (!state.world.genre) {
+            alert("⚠️ Vui lòng chọn hoặc nhập Thể loại thế giới trước!");
+            return;
+        }
+    }
+
     dispatch({ type: 'SET_GENERATING', isGenerating: true, field });
     try {
-      const content = await aiService.generateFieldContent(contextType, field, aiModel);
+      // 2. Build Explicit Context
+      const contextData = category === 'player' 
+        ? { ...state.player, genre: state.world.genre } 
+        : { genre: state.world.genre, worldName: state.world.worldName };
+
+      const content = await aiService.generateFieldContent(category, field, contextData, aiModel);
+      
       // Dispatch based on field type
       if (['name', 'gender', 'age', 'personality', 'background', 'appearance', 'skills', 'goal'].includes(field)) {
         dispatch({ type: 'UPDATE_PLAYER', field: field as any, value: content });
@@ -60,6 +80,7 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
       }
     } catch (error) {
       console.error("AI Error", error);
+      alert("Có lỗi khi gọi AI. Vui lòng thử lại.");
     } finally {
       dispatch({ type: 'SET_GENERATING', isGenerating: false });
     }

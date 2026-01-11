@@ -35,15 +35,25 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
     onSave(entity);
   };
 
-  const handleAiSuggest = async () => {
+  const handleAiSuggest = async (field: 'description' | 'personality') => {
+    if (!name.trim()) {
+        alert("⚠️ Vui lòng nhập Tên thực thể trước khi sử dụng gợi ý!");
+        return;
+    }
+
     setIsGenerating(true);
     try {
-      const desc = await aiService.generateFieldContent(type, 'description');
-      setDescription(desc);
-      if (type === 'NPC') {
-        const pers = await aiService.generateFieldContent('npc', 'personality');
-        setPersonality(pers);
+      const contextData = { name, type, genre: '' }; // Genre could be passed in props for better context if available
+      const content = await aiService.generateFieldContent('entity', field, contextData);
+      
+      if (field === 'description') {
+          setDescription(content);
+      } else {
+          setPersonality(content);
       }
+    } catch (error) {
+        console.error(error);
+        alert("Lỗi kết nối AI.");
     } finally {
       setIsGenerating(false);
     }
@@ -107,7 +117,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
             <label className="text-sm font-medium text-mystic-accent flex justify-between">
               <span>Mô tả</span>
               <button 
-                onClick={handleAiSuggest} 
+                onClick={() => handleAiSuggest('description')} 
                 disabled={isGenerating}
                 className="text-xs flex items-center gap-1 text-mystic-accent/80 hover:text-mystic-accent"
               >
@@ -125,7 +135,17 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
 
           {type === 'NPC' && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-mystic-accent">Tính cách</label>
+              <label className="text-sm font-medium text-mystic-accent flex justify-between">
+                  <span>Tính cách</span>
+                  <button 
+                    onClick={() => handleAiSuggest('personality')} 
+                    disabled={isGenerating}
+                    className="text-xs flex items-center gap-1 text-mystic-accent/80 hover:text-mystic-accent"
+                  >
+                    {isGenerating ? <span className="animate-spin">⏳</span> : <Sparkles size={12} />} 
+                    AI Gợi ý
+                  </button>
+              </label>
               <input 
                 type="text" 
                 value={personality}
