@@ -176,7 +176,9 @@ const TawaPresetManager: React.FC<TawaPresetManagerProps> = ({ onConfigChange })
                                     <div className="h-[1px] flex-1 bg-slate-800"></div>
                                 </h4>
                                 
-                                {config.modules.map(mod => (
+                                {config.modules
+                                    .filter(mod => mod.id !== 'conf_word_count') // FILTER HIDDEN MODULE
+                                    .map(mod => (
                                     <div key={mod.id} className={`p-3 rounded-lg border transition-all ${mod.isActive ? 'bg-slate-800/60 border-slate-600' : 'bg-slate-900/50 border-slate-800 opacity-70'}`}>
                                         <div className="flex justify-between items-start">
                                             <div className="flex-1 mr-4">

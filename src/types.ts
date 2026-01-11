@@ -140,6 +140,7 @@ export interface PromptModule {
   // V2 Architecture Fields
   injectKey?: string; // Nếu có, nội dung sẽ được tiêm vào {{getvar::key}} thay vì nối chuỗi
   position?: PromptPosition; // Vị trí ưu tiên trong chuỗi prompt (nếu không có injectKey)
+  order?: number; // Thứ tự sắp xếp chi tiết trong cùng một position (nhỏ xếp trước)
 }
 
 export interface TawaPresetConfig {

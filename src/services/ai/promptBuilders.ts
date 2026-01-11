@@ -18,6 +18,7 @@ const POSITION_PRIORITY: Record<PromptPosition, number> = {
 interface PromptSegment {
     content: string;
     priority: number;
+    order: number; // Thêm Order để sort chi tiết
     source?: string; // Để debug
 }
 
@@ -123,8 +124,11 @@ export const buildGameplaySystemPrompt = (
       // CASE B: Module đứng độc lập (Đẩy vào mảng Segment)
       else {
           const priority = mod.position ? POSITION_PRIORITY[mod.position] : POSITION_PRIORITY['system'];
+          // Default order is 0 if not specified
+          const order = mod.order || 0;
           segments.push({
               priority: priority,
+              order: order,
               content: mod.content,
               source: `Module:${mod.id}`
           });
@@ -136,6 +140,7 @@ export const buildGameplaySystemPrompt = (
   // 1. Identity & Output Format (System Level)
   segments.push({
       priority: POSITION_PRIORITY['system'],
+      order: 0,
       content: `${TAWA_IDENTITY}\n${TAWA_OUTPUT_FORMAT}`,
       source: 'Identity & Format'
   });
@@ -147,7 +152,7 @@ export const buildGameplaySystemPrompt = (
   - Thể loại: ${worldSettings.genre}
   - Bối cảnh: ${worldSettings.context}
   `;
-  segments.push({ priority: POSITION_PRIORITY['persona'], content: worldContext, source: 'WorldData' });
+  segments.push({ priority: POSITION_PRIORITY['persona'], order: 0, content: worldContext, source: 'WorldData' });
 
   // 3. Player Context (Persona Level)
   const playerContext = `
@@ -159,28 +164,29 @@ export const buildGameplaySystemPrompt = (
   - Kỹ năng: ${playerProfile.skills || "Chưa rõ"}
   - Mục tiêu: ${playerProfile.goal || "Sinh tồn"}
   `;
-  segments.push({ priority: POSITION_PRIORITY['persona'], content: playerContext, source: 'PlayerData' });
+  segments.push({ priority: POSITION_PRIORITY['persona'], order: 1, content: playerContext, source: 'PlayerData' });
 
   // 4. Lorebook (Persona Level)
   const lorebook = `
   === LOREBOOK (NPC & ĐỊA ĐIỂM) ===
   ${entities.map((e: any) => `> [${e.type}] ${e.name}: ${e.description.substring(0, 300)}...`).join('\n')}
   `;
-  segments.push({ priority: POSITION_PRIORITY['persona'], content: lorebook, source: 'Lorebook' });
+  segments.push({ priority: POSITION_PRIORITY['persona'], order: 2, content: lorebook, source: 'Lorebook' });
 
   // 5. Memories (RAG) (Persona Level)
   segments.push({ 
       priority: POSITION_PRIORITY['persona'], 
+      order: 3,
       content: `=== KÝ ỨC LIÊN QUAN (RAG) ===\n${relevantMemories || "Chưa có ký ức nào."}`, 
       source: 'Memories' 
   });
 
   // 6. Difficulty & Perspective (System Level)
   const difficultyPrompt = `=== THIẾT LẬP ĐỘ KHÓ (${gameConfig.difficulty.label}) ===\n${gameConfig.difficulty.prompt}`;
-  segments.push({ priority: POSITION_PRIORITY['system'], content: difficultyPrompt, source: 'Difficulty' });
+  segments.push({ priority: POSITION_PRIORITY['system'], order: 5, content: difficultyPrompt, source: 'Difficulty' });
 
   const perspectivePrompt = `=== GÓC NHÌN KỂ CHUYỆN (BẮT BUỘC) ===\n${getPerspectivePrompt(gameConfig.perspective || 'third', playerProfile.name)}`;
-  segments.push({ priority: POSITION_PRIORITY['system'], content: perspectivePrompt, source: 'Perspective' });
+  segments.push({ priority: POSITION_PRIORITY['system'], order: 6, content: perspectivePrompt, source: 'Perspective' });
 
   // 7. Mandatory Rules (System Level)
   const rulesContent = gameConfig.rules.length > 0 
@@ -188,13 +194,15 @@ export const buildGameplaySystemPrompt = (
       : "Chưa có quy tắc bổ sung.";
   segments.push({ 
       priority: POSITION_PRIORITY['system'], 
+      order: 7,
       content: `=== LUẬT BẤT KHẢ KHÁNG (MANDATORY RULES) ===\n${rulesContent}`, 
       source: 'UserRules' 
   });
 
   // 8. Status (System/Bottom)
   segments.push({
-      priority: POSITION_PRIORITY['bottom'] - 5,
+      priority: POSITION_PRIORITY['bottom'],
+      order: -10, // Before other bottom modules
       content: `=== TRẠNG THÁI HIỆN TẠI ===\n- Số lượt chơi (Turn): ${turnCount}`,
       source: 'GameStatus'
   });
@@ -224,9 +232,15 @@ export const buildGameplaySystemPrompt = (
 
   // --- BƯỚC 5: SẮP XẾP & KẾT XUẤT ---
 
-  // Sắp xếp mảng segments theo priority tăng dần
-  // Top -> System -> Persona -> Bottom -> Final
-  segments.sort((a, b) => a.priority - b.priority);
+  // Sắp xếp mảng segments theo logic:
+  // 1. Priority (Position) thấp trước (Top -> Final)
+  // 2. Nếu cùng priority, Order thấp trước
+  segments.sort((a, b) => {
+      if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+      }
+      return (a.order || 0) - (b.order || 0);
+  });
 
   // Nối chuỗi
   const finalPrompt = segments.map(s => s.content).join('\n\n');

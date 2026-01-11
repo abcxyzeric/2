@@ -52,9 +52,8 @@ const TawaMessageRenderer: React.FC<TawaMessageRendererProps> = ({ text, onUpdat
         }
     }
 
-    // IMPORTANT: Strip <choices> tag from mainContent so it doesn't show raw tag in bubble
-    // (Choices are now handled by the Input Area)
-    mainContent = mainContent ? mainContent.replace(TAWA_REGEX.STRIP_CHOICES, '').trim() : "";
+    // IMPORTANT: Strip <branches> tag from mainContent (now wrapped in <details>)
+    mainContent = mainContent ? mainContent.replace(TAWA_REGEX.STRIP_BRANCHES, '').trim() : "";
 
     // IMPORTANT: Strip inner <thinking> tags that might appear inside <content>
     // This handles cases where the AI puts meta-commentary inside the story block
@@ -368,11 +367,12 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
               tawaPresetConfig 
             );
             
-            // Extract choices from opening if available
-            const choicesMatch = opening.match(TAWA_REGEX.CHOICES);
-            const rawChoices = choicesMatch ? choicesMatch[1].trim() : null;
-            const choicesList = rawChoices 
-                ? rawChoices.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
+            // Extract choices/branches from opening if available
+            // NEW LOGIC: Use BRANCHES instead of CHOICES
+            const branchesMatch = opening.match(TAWA_REGEX.BRANCHES);
+            const rawBranches = branchesMatch ? branchesMatch[1].trim() : null;
+            const choicesList = rawBranches 
+                ? rawBranches.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
                 : [];
 
             const newMsg: ChatMessage = { 
@@ -464,11 +464,11 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
       tawaPresetConfig
     );
 
-    // PARSE CHOICES HERE FOR PERSISTENCE
-    const choicesMatch = responseText.match(TAWA_REGEX.CHOICES);
-    const rawChoices = choicesMatch ? choicesMatch[1].trim() : null;
-    const choicesList = rawChoices 
-        ? rawChoices.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
+    // PARSE BRANCHES HERE FOR PERSISTENCE (REPLACED OLD CHOICES LOGIC)
+    const branchesMatch = responseText.match(TAWA_REGEX.BRANCHES);
+    const rawBranches = branchesMatch ? branchesMatch[1].trim() : null;
+    const choicesList = rawBranches 
+        ? rawBranches.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
         : [];
 
     const modelMsg: ChatMessage = { 
@@ -499,10 +499,10 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
             
             // Re-parse choices if model message updated, to keep UI in sync
             if (newHistory[index].role === 'model') {
-                const choicesMatch = newText.match(TAWA_REGEX.CHOICES);
-                const rawChoices = choicesMatch ? choicesMatch[1].trim() : null;
-                const choicesList = rawChoices 
-                    ? rawChoices.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
+                const branchesMatch = newText.match(TAWA_REGEX.BRANCHES);
+                const rawBranches = branchesMatch ? branchesMatch[1].trim() : null;
+                const choicesList = rawBranches 
+                    ? rawBranches.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
                     : [];
                 newHistory[index].choices = choicesList;
             }

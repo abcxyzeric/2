@@ -13,10 +13,15 @@ export const TAWA_REGEX = {
   // Dùng để xóa TOÀN BỘ thẻ thinking khỏi chuỗi (Global flag)
   GLOBAL_THINKING_STRIP: /<thinking>[\s\S]*?<\/thinking>/g,
 
-  // Bắt nội dung trong thẻ <choices>...</choices>
-  CHOICES: /<choices>([\s\S]*?)<\/choices>/,
+  // Bắt nội dung trong thẻ <branches>...</branches>
+  BRANCHES: /<branches>([\s\S]*?)<\/branches>/,
 
-  // Dùng để xóa thẻ choices khỏi chuỗi hiển thị chính
+  // Dùng để xóa thẻ branches (và vỏ bọc details của nó) khỏi chuỗi hiển thị chính
+  // Bắt từ <details> ... <branches> ... </branches> ... </details>
+  STRIP_BRANCHES: /<details>[\s\S]*?<branches>[\s\S]*?<\/branches>[\s\S]*?<\/details>/g,
+
+  // Legacy choices support (fallback)
+  CHOICES: /<choices>([\s\S]*?)<\/choices>/,
   STRIP_CHOICES: /<choices>[\s\S]*?<\/choices>/,
 
   // Regex để xóa các đoạn kiểm tra tiến độ và bảng trạng thái rác
