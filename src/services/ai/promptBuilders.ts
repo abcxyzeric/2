@@ -1,7 +1,6 @@
 
 import { TAWA_IDENTITY, TAWA_OUTPUT_FORMAT } from '../../constants/tawa_protocol';
 import { GameConfig, TawaPresetConfig, PromptModule, PromptPosition } from '../../types';
-import { generateWordCountPrompt } from '../../constants/promptTemplates';
 
 // --- V2 ARCHITECTURE CONSTANTS ---
 
@@ -11,55 +10,18 @@ const POSITION_PRIORITY: Record<PromptPosition, number> = {
     'top': 0,
     'system': 10,
     'persona': 20,
-    'bottom': 30
+    'bottom': 30,
+    'final': 40 // Mới thêm: Vị trí cuối cùng (cho Seal, Anti-cut)
 };
 
 // Interface cho một đoạn prompt đã được xử lý
 interface PromptSegment {
     content: string;
     priority: number;
-    source?: string; // Để debug (VD: 'Identity', 'Module: anti_rules')
+    source?: string; // Để debug
 }
 
 // --- HELPER FUNCTIONS ---
-
-/**
- * Hàm 1: Xử lý Dynamic Variable Injection
- * Quét toàn bộ text và thay thế {{getvar::KEY}} bằng content của module tương ứng HOẶC giá trị số học.
- */
-const processDynamicInjection = (
-    baseText: string, 
-    activeModules: PromptModule[], 
-    variables: Record<string, string | number>
-): string => {
-    let processedText = baseText;
-
-    // 1. Thay thế các biến số học cơ bản (word_min, word_max...)
-    for (const [key, value] of Object.entries(variables)) {
-        const regex = new RegExp(`\\{\\{getvar::${key}\\}\\}`, 'g');
-        processedText = processedText.replace(regex, String(value));
-    }
-
-    // 2. Thay thế các biến module (Dựa trên injectKey)
-    // Ví dụ: {{getvar::anti_rules}} sẽ được thay bằng content của module có injectKey='anti_rules'
-    activeModules.forEach(mod => {
-        if (mod.injectKey) {
-            // Escape special chars in key just in case, but usually keys are simple
-            const safeKey = mod.injectKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\{\\{getvar::${safeKey}\\}\\}`, 'g');
-            
-            if (processedText.match(regex)) {
-                processedText = processedText.replace(regex, mod.content);
-            }
-        }
-    });
-
-    // 3. Cleanup: Xóa các placeholder không tìm thấy giá trị thay thế (tránh để lại {{getvar::...}} rác)
-    // processedText = processedText.replace(/\{\{getvar::.*?\}\}/g, ''); 
-    // Comment out cleanup để dễ debug nếu thiếu module
-
-    return processedText;
-};
 
 // Helper tạo prompt góc nhìn
 const getPerspectivePrompt = (perspective: string, playerName: string) => {
@@ -82,9 +44,7 @@ const getPerspectivePrompt = (perspective: string, playerName: string) => {
     }
 };
 
-// --- MAIN BUILDER FUNCTIONS ---
-
-// Prompt cho World Creation (Giữ nguyên logic đơn giản)
+// Prompt cho World Creation
 export const buildWorldCreationPrompt = (fieldName: string, currentContext: any) => {
   return `
   Nhiệm vụ: Sáng tạo nội dung cho trường dữ liệu: "${fieldName}".
@@ -98,8 +58,8 @@ export const buildWorldCreationPrompt = (fieldName: string, currentContext: any)
 };
 
 /**
- * Hàm Prompt Gameplay Chính (REFACTORED V2)
- * Sử dụng kiến trúc Depth-Based Sorting & Dynamic Injection
+ * Hàm Prompt Gameplay Chính (REFACTORED V2 - TAWA ULTIMATE)
+ * Sử dụng kiến trúc Data-Driven Injection & Granular Modules
  */
 export const buildGameplaySystemPrompt = (
   worldSettings: any,
@@ -110,7 +70,7 @@ export const buildGameplaySystemPrompt = (
   presetConfig: TawaPresetConfig,
   gameConfig: GameConfig
 ) => {
-  // --- BƯỚC 1: CHUẨN BỊ DỮ LIỆU ---
+  // --- BƯỚC 1: KHỞI TẠO BIẾN (VARIABLE MAP) ---
   
   // Xác định số từ
   let minWords = 1000;
@@ -123,40 +83,64 @@ export const buildGameplaySystemPrompt = (
       maxWords = minWords + 4000; 
   }
 
-  // Lọc danh sách module đang hoạt động
-  const activeModules = presetConfig.modules.filter(m => m.isActive);
-
-  // Tạo Dictionary biến số cơ bản
-  const baseVariables = {
-      word_min: minWords,
-      word_max: maxWords
+  // Khởi tạo Map biến số với các giá trị mặc định & Config
+  const variables: Record<string, string> = {
+      'word_min': String(minWords),
+      'word_max': String(maxWords),
+      'output_language': 'Tiếng Việt',
+      // Khởi tạo các key injection phổ biến để tránh lỗi undefined khi replace
+      '42': '',
+      'Tiên Đề Thế Giới': '',
+      '<Writing_Style>': '',
+      'POV_rules': '',
+      'thinking_chain': '',
+      'anti_rules': '',
+      'npc_logic': '',
+      'Quan hệ nhân vật': '',
+      'enigma': '',
+      'seeds': '',
+      'outside_cot': '',
+      'meow_FM': '',
+      'nsfw_thinking_chain': ''
   };
 
-  // --- BƯỚC 2: XỬ LÝ DYNAMIC INJECTION CHO COT ---
-  // Core COT thường chứa nhiều biến placeholders, cần xử lý trước tiên
-  const rawCOT = presetConfig.cot.content;
-  const processedCOT = processDynamicInjection(rawCOT, activeModules, baseVariables);
-
-  // --- BƯỚC 3: XÂY DỰNG CÁC MẢNH PROMPT (SEGMENTS) ---
+  const activeModules = presetConfig.modules.filter(m => m.isActive);
   const segments: PromptSegment[] = [];
 
-  // A. HARDCODED SEGMENTS (Các thành phần cố định của hệ thống)
-
-  // 1. Word Count (Top Priority - Luôn ở đầu để định hình format)
-  segments.push({
-      priority: -10, // Siêu ưu tiên (Top of Top)
-      content: generateWordCountPrompt(minWords, maxWords),
-      source: 'WordCountProtocol'
+  // --- BƯỚC 2: QUÉT MODULE & INJECTION ---
+  
+  activeModules.forEach(mod => {
+      // CASE A: Module có injectKey (Nội dung sẽ được bắn vào biến)
+      if (mod.injectKey) {
+          const key = mod.injectKey;
+          // Nếu biến đã có dữ liệu -> Nối thêm (Append) để xử lý Multiple Injection
+          if (variables[key]) {
+              variables[key] += "\n" + mod.content;
+          } else {
+              variables[key] = mod.content;
+          }
+      } 
+      // CASE B: Module đứng độc lập (Đẩy vào mảng Segment)
+      else {
+          const priority = mod.position ? POSITION_PRIORITY[mod.position] : POSITION_PRIORITY['system'];
+          segments.push({
+              priority: priority,
+              content: mod.content,
+              source: `Module:${mod.id}`
+          });
+      }
   });
 
-  // 2. Identity & Output Format (System Level)
+  // --- BƯỚC 3: XỬ LÝ SEGMENTS CỐ ĐỊNH (HARDCODED) ---
+  
+  // 1. Identity & Output Format (System Level)
   segments.push({
       priority: POSITION_PRIORITY['system'],
       content: `${TAWA_IDENTITY}\n${TAWA_OUTPUT_FORMAT}`,
       source: 'Identity & Format'
   });
 
-  // 3. World Context (Persona/Context Level)
+  // 2. World Context (Persona Level)
   const worldContext = `
   === DỮ LIỆU THẾ GIỚI ===
   - Tên: ${worldSettings.worldName}
@@ -165,7 +149,7 @@ export const buildGameplaySystemPrompt = (
   `;
   segments.push({ priority: POSITION_PRIORITY['persona'], content: worldContext, source: 'WorldData' });
 
-  // 4. Player Context (Persona/Context Level)
+  // 3. Player Context (Persona Level)
   const playerContext = `
   === HỒ SƠ NHÂN VẬT CHÍNH (<user>) ===
   - Tên: ${playerProfile.name}
@@ -177,28 +161,28 @@ export const buildGameplaySystemPrompt = (
   `;
   segments.push({ priority: POSITION_PRIORITY['persona'], content: playerContext, source: 'PlayerData' });
 
-  // 5. Lorebook (Persona/Context Level)
+  // 4. Lorebook (Persona Level)
   const lorebook = `
   === LOREBOOK (NPC & ĐỊA ĐIỂM) ===
   ${entities.map((e: any) => `> [${e.type}] ${e.name}: ${e.description.substring(0, 300)}...`).join('\n')}
   `;
   segments.push({ priority: POSITION_PRIORITY['persona'], content: lorebook, source: 'Lorebook' });
 
-  // 6. Memories (RAG) (Persona Level)
+  // 5. Memories (RAG) (Persona Level)
   segments.push({ 
       priority: POSITION_PRIORITY['persona'], 
       content: `=== KÝ ỨC LIÊN QUAN (RAG) ===\n${relevantMemories || "Chưa có ký ức nào."}`, 
       source: 'Memories' 
   });
 
-  // 7. Difficulty & Perspective (System Level - Cần AI nhớ để điều chỉnh giọng văn)
+  // 6. Difficulty & Perspective (System Level)
   const difficultyPrompt = `=== THIẾT LẬP ĐỘ KHÓ (${gameConfig.difficulty.label}) ===\n${gameConfig.difficulty.prompt}`;
   segments.push({ priority: POSITION_PRIORITY['system'], content: difficultyPrompt, source: 'Difficulty' });
 
   const perspectivePrompt = `=== GÓC NHÌN KỂ CHUYỆN (BẮT BUỘC) ===\n${getPerspectivePrompt(gameConfig.perspective || 'third', playerProfile.name)}`;
   segments.push({ priority: POSITION_PRIORITY['system'], content: perspectivePrompt, source: 'Perspective' });
 
-  // 8. Mandatory Rules (System Level - Override)
+  // 7. Mandatory Rules (System Level)
   const rulesContent = gameConfig.rules.length > 0 
       ? gameConfig.rules.map((r: string, idx: number) => `${idx + 1}. ${r}`).join('\n') 
       : "Chưa có quy tắc bổ sung.";
@@ -208,44 +192,45 @@ export const buildGameplaySystemPrompt = (
       source: 'UserRules' 
   });
 
-  // 9. Status (System/Bottom)
+  // 8. Status (System/Bottom)
   segments.push({
-      priority: POSITION_PRIORITY['bottom'] - 5, // Gần cuối
+      priority: POSITION_PRIORITY['bottom'] - 5,
       content: `=== TRẠNG THÁI HIỆN TẠI ===\n- Số lượt chơi (Turn): ${turnCount}`,
       source: 'GameStatus'
   });
 
-  // B. DYNAMIC MODULE SEGMENTS (Các module bổ sung)
+  // --- BƯỚC 4: THAY THẾ BIẾN (VARIABLE REPLACEMENT) ---
   
-  activeModules.forEach(mod => {
-      // Chỉ thêm các module KHÔNG có injectKey (vì module có injectKey đã được tiêm vào COT rồi)
-      if (!mod.injectKey) {
-          const priority = mod.position ? POSITION_PRIORITY[mod.position] : POSITION_PRIORITY['system'];
-          segments.push({
-              priority: priority,
-              content: `\n=== MODULE: ${mod.label} ===\n${mod.content}`,
-              source: `Module:${mod.id}`
-          });
-      }
+  // Hàm replace cục bộ: Thay thế tất cả {{getvar::KEY}} hoặc {{getglobalvar::KEY}} bằng giá trị trong variables
+  const replaceVariables = (text: string): string => {
+      let processed = text;
+      // Regex bắt cả getvar và getglobalvar
+      // Group 1: key name
+      const regex = /\{\{(?:getvar|getglobalvar)::(.*?)\}\}/g;
+      
+      processed = processed.replace(regex, (match, key) => {
+          const cleanKey = key.trim();
+          // Nếu biến tồn tại trong map -> thay thế. Nếu không -> giữ nguyên (hoặc thay bằng rỗng tùy logic, ở đây giữ rỗng cho sạch)
+          return variables[cleanKey] !== undefined ? variables[cleanKey] : '';
+      });
+      return processed;
+  };
+
+  // Áp dụng replace cho tất cả Segments
+  // Lưu ý: Các module chứa {{getvar}} (như COT hoặc Word Count) sẽ được điền dữ liệu tại đây
+  segments.forEach(seg => {
+      seg.content = replaceVariables(seg.content);
   });
 
-  // C. CORE COT (ABSOLUTE LAST PRIORITY)
-  // COT chứa logic xử lý quan trọng nhất, cần nằm cuối cùng để AI "nhớ" và thực hiện ngay lập tức
-  segments.push({
-      priority: 100, // Max Priority
-      content: `=== QUY TRÌNH TƯ DUY BẮT BUỘC (COT - EXECUTION CORE) ===\n${processedCOT}`,
-      source: 'CoreCOT'
-  });
-
-  // --- BƯỚC 4: SẮP XẾP & GHÉP CHUỖI (DEPTH-BASED SORTING) ---
+  // --- BƯỚC 5: SẮP XẾP & KẾT XUẤT ---
 
   // Sắp xếp mảng segments theo priority tăng dần
-  // (Priority thấp = Đầu prompt, Priority cao = Cuối prompt)
+  // Top -> System -> Persona -> Bottom -> Final
   segments.sort((a, b) => a.priority - b.priority);
 
   // Nối chuỗi
   const finalPrompt = segments.map(s => s.content).join('\n\n');
 
   // Thêm lời nhắc cuối cùng (Safety Net)
-  return finalPrompt + `\n\n(NHẮC LẠI: Output phải là JSON hoặc cấu trúc XML hợp lệ như đã định nghĩa. TUÂN THỦ NGHIÊM NGẶT SỐ TỪ TỪ ${minWords} ĐẾN ${maxWords} TỪ TRONG <content>)`;
+  return finalPrompt + `\n\n(NHẮC LẠI: TUÂN THỦ NGHIÊM NGẶT SỐ TỪ TỪ ${minWords} ĐẾN ${maxWords} TỪ TRONG <content>)`;
 };

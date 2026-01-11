@@ -128,7 +128,7 @@ export interface ChatMessage {
 // --- NEW TAWA PRESET TYPES (REFACTOR V2) ---
 
 // Define the depth layers for the prompt construction
-export type PromptPosition = 'top' | 'system' | 'persona' | 'bottom';
+export type PromptPosition = 'top' | 'system' | 'persona' | 'bottom' | 'final';
 
 export interface PromptModule {
   id: string;
