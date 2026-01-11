@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 
@@ -6,6 +7,9 @@ interface ButtonProps extends HTMLMotionProps<"button"> {
   icon?: React.ReactNode;
   isLoading?: boolean;
   children?: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
 }
 
 const Button: React.FC<ButtonProps> = ({ 
@@ -28,13 +32,15 @@ const Button: React.FC<ButtonProps> = ({
   };
 
   const disabledStyles = "opacity-50 cursor-not-allowed grayscale";
+  const MotionButton = motion.button as any;
 
   return (
-    <motion.button
+    <MotionButton
       whileHover={!disabled ? { scale: 1.02 } : {}}
       whileTap={!disabled ? { scale: 0.98 } : {}}
       className={`${baseStyles} ${variants[variant]} ${disabled || isLoading ? disabledStyles : ''} ${className}`}
       disabled={disabled || isLoading}
+      onClick={props.onClick}
       {...props}
     >
       {/* Background sweep effect for primary buttons */}
@@ -50,7 +56,7 @@ const Button: React.FC<ButtonProps> = ({
           <span className="tracking-wide uppercase text-sm">{children}</span>
         </>
       )}
-    </motion.button>
+    </MotionButton>
   );
 };
 

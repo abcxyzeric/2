@@ -125,16 +125,24 @@ export interface ChatMessage {
   choices?: string[]; // Added field to persist action choices
 }
 
-// --- NEW TAWA PRESET TYPES (REFACTOR) ---
+// --- NEW TAWA PRESET TYPES (REFACTOR V2) ---
+
+// Define the depth layers for the prompt construction
+export type PromptPosition = 'top' | 'system' | 'persona' | 'bottom';
+
 export interface PromptModule {
   id: string;
   label: string;
   isActive: boolean; // Trạng thái Bật/Tắt
-  content: string;   // Nội dung Prompt (có thể chỉnh sửa)
-  isCore?: boolean;  // Đánh dấu nếu đây là COT (không thể tắt, chỉ sửa được content)
+  content: string;   // Nội dung Prompt
+  isCore?: boolean;  // Đánh dấu nếu đây là COT (không thể tắt)
+  
+  // V2 Architecture Fields
+  injectKey?: string; // Nếu có, nội dung sẽ được tiêm vào {{getvar::key}} thay vì nối chuỗi
+  position?: PromptPosition; // Vị trí ưu tiên trong chuỗi prompt (nếu không có injectKey)
 }
 
 export interface TawaPresetConfig {
   cot: PromptModule; // Lõi tư duy
-  modules: PromptModule[]; // Danh sách các module (Anti-omniscience, etc...)
+  modules: PromptModule[]; // Danh sách các module
 }

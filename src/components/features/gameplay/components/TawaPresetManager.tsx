@@ -15,6 +15,7 @@ const TawaPresetManager: React.FC<TawaPresetManagerProps> = ({ onConfigChange })
   const [isOpen, setIsOpen] = useState(false);
   const [config, setConfig] = useState<TawaPresetConfig>(DEFAULT_PRESET_CONFIG);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const MotionDiv = motion.div as any;
 
   // 1. Initialize: Load from LocalStorage or Default
   useEffect(() => {
@@ -89,7 +90,7 @@ const TawaPresetManager: React.FC<TawaPresetManagerProps> = ({ onConfigChange })
   // --- Render Helpers ---
 
   const renderEditor = (id: string, label: string, content: string) => (
-      <motion.div 
+      <MotionDiv 
         initial={{ opacity: 0, height: 0 }}
         animate={{ opacity: 1, height: 'auto' }}
         exit={{ opacity: 0, height: 0 }}
@@ -107,7 +108,7 @@ const TawaPresetManager: React.FC<TawaPresetManagerProps> = ({ onConfigChange })
             className="w-full h-64 bg-slate-900 border border-slate-700 rounded p-2 text-xs font-mono text-slate-300 focus:border-mystic-accent outline-none resize-y custom-scrollbar leading-relaxed"
             placeholder="Nhập nội dung prompt..."
           />
-      </motion.div>
+      </MotionDiv>
   );
 
   return (
@@ -130,7 +131,7 @@ const TawaPresetManager: React.FC<TawaPresetManagerProps> = ({ onConfigChange })
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
@@ -224,7 +225,7 @@ const TawaPresetManager: React.FC<TawaPresetManagerProps> = ({ onConfigChange })
                                 Đóng
                             </button>
                         </div>
-                    </motion.div>
+                    </MotionDiv>
                 </div>
             )}
         </AnimatePresence>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Save, Sparkles } from 'lucide-react';
@@ -18,6 +19,8 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
   const [personality, setPersonality] = useState(initialData?.personality || '');
   const [customType, setCustomType] = useState(initialData?.customType || '');
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  const MotionDiv = motion.div as any;
 
   const handleSave = () => {
     if (!name.trim()) return alert("Tên thực thể không được để trống");
@@ -48,7 +51,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <motion.div 
+      <MotionDiv 
         initial={{ scale: 0.9, opacity: 0 }} 
         animate={{ scale: 1, opacity: 1 }} 
         className="bg-mystic-900 w-full max-w-lg rounded-lg border border-slate-700 shadow-2xl overflow-hidden"
@@ -138,7 +141,7 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
           <Button variant="ghost" onClick={onCancel}>Hủy</Button>
           <Button variant="primary" onClick={handleSave} icon={<Save size={16} />}>Lưu</Button>
         </div>
-      </motion.div>
+      </MotionDiv>
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, ShieldCheck } from 'lucide-react';
@@ -20,7 +21,8 @@ interface SafetySettingsProps {
 }
 
 const SafetySettings: React.FC<SafetySettingsProps> = ({ settings, onUpdate, onSave, isSaving }) => {
-  
+  const MotionDiv = motion.div as any;
+
   const handleToggle = (category: string) => {
     if (!settings.safetySettings) return;
 
@@ -60,7 +62,7 @@ const SafetySettings: React.FC<SafetySettingsProps> = ({ settings, onUpdate, onS
           {settings.safetySettings?.map((setting) => {
             const isOff = setting.threshold === 'BLOCK_NONE';
             return (
-              <motion.div 
+              <MotionDiv 
                 key={setting.category} 
                 className={`flex justify-between items-center p-3 rounded border transition-colors ${isOff ? 'bg-red-900/10 border-red-900/30' : 'bg-slate-800 border-slate-700'}`}
               >
@@ -77,9 +79,9 @@ const SafetySettings: React.FC<SafetySettingsProps> = ({ settings, onUpdate, onS
                   onClick={() => handleToggle(setting.category)}
                   className={`w-12 h-6 rounded-full p-1 transition-colors flex items-center ${isOff ? 'bg-slate-700 justify-start' : 'bg-mystic-accent justify-end'}`}
                 >
-                   <motion.div layout className="w-4 h-4 bg-white rounded-full shadow-md" />
+                   <MotionDiv layout className="w-4 h-4 bg-white rounded-full shadow-md" />
                 </button>
-              </motion.div>
+              </MotionDiv>
             );
           })}
         </div>

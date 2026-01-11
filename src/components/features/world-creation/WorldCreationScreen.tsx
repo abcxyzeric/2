@@ -31,6 +31,9 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
   const [conceptInput, setConceptInput] = useState('');
   const [aiModel, setAiModel] = useState<string>('gemini-3-pro-preview');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const MotionDiv = motion.div as any;
+  const MotionInput = motion.input as any;
 
   // Initial Load (Settings & Import Data)
   useEffect(() => {
@@ -271,14 +274,14 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
                   
                   {/* Show Input ONLY if "Tùy chọn" is selected (or we have a custom value) */}
                   {(selectValue === 'Tùy chọn') && (
-                    <motion.input 
+                    <MotionInput 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         type="text" 
                         value={state.world.genre}
                         className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-slate-100 outline-none placeholder-slate-500 focus:border-mystic-accent text-sm"
                         placeholder="Nhập thể loại tùy chỉnh (VD: Steampunk lai Tiên Hiệp)..."
-                        onChange={(e) => dispatch({ type: 'UPDATE_WORLD', field: 'genre', value: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => dispatch({ type: 'UPDATE_WORLD', field: 'genre', value: e.target.value })}
                     />
                   )}
               </div>
@@ -504,7 +507,7 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
                  >
                     <tab.icon size={20} />
                     {state.currentTab === tab.id && (
-                        <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-mystic-accent" />
+                        <MotionDiv layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-mystic-accent" />
                     )}
                  </button>
              ))}
@@ -514,10 +517,10 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
       {/* TAB CONTENT - SCROLLABLE AREA */}
       <div className="flex-1 overflow-y-auto custom-scrollbar relative px-4 md:px-6 pb-4">
          <AnimatePresence mode="wait">
-            {state.currentTab === 0 && <motion.div key="tab0" className="h-full">{renderPlayerTab()}</motion.div>}
-            {state.currentTab === 1 && <motion.div key="tab1" className="h-full">{renderWorldTab()}</motion.div>}
-            {state.currentTab === 2 && <motion.div key="tab2" className="h-full">{renderConfigTab()}</motion.div>}
-            {state.currentTab === 3 && <motion.div key="tab3" className="h-full">{renderEntitiesTab()}</motion.div>}
+            {state.currentTab === 0 && <MotionDiv key="tab0" className="h-full">{renderPlayerTab()}</MotionDiv>}
+            {state.currentTab === 1 && <MotionDiv key="tab1" className="h-full">{renderWorldTab()}</MotionDiv>}
+            {state.currentTab === 2 && <MotionDiv key="tab2" className="h-full">{renderConfigTab()}</MotionDiv>}
+            {state.currentTab === 3 && <MotionDiv key="tab3" className="h-full">{renderEntitiesTab()}</MotionDiv>}
          </AnimatePresence>
       </div>
 

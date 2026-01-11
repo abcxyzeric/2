@@ -13,6 +13,9 @@ import TawaPresetManager from './components/TawaPresetManager'; // Import Manage
 // Constants for Pagination
 const MESSAGES_PER_PAGE = 5;
 
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
+
 // Helper component to render Tawa's structured output
 // UPDATED: Added Raw Context Editing Mode
 interface TawaMessageRendererProps {
@@ -169,14 +172,14 @@ const TawaMessageRenderer: React.FC<TawaMessageRendererProps> = ({ text, onUpdat
             {thinkingContent && (
                 <AnimatePresence>
                     {showThinking && (
-                        <motion.div 
+                        <MotionDiv 
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
                             className="bg-slate-900/50 border-l-2 border-slate-600 p-3 rounded-r text-xs text-slate-400 font-mono overflow-hidden mb-2"
                         >
                             <div className="whitespace-pre-wrap">{thinkingContent}</div>
-                        </motion.div>
+                        </MotionDiv>
                     )}
                 </AnimatePresence>
             )}
@@ -239,7 +242,7 @@ const RulesManager: React.FC<{
             <AnimatePresence>
                 {isOpen && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                        <motion.div 
+                        <MotionDiv 
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
@@ -307,7 +310,7 @@ const RulesManager: React.FC<{
                                     </button>
                                 </div>
                             </div>
-                        </motion.div>
+                        </MotionDiv>
                     </div>
                 )}
             </AnimatePresence>
@@ -711,7 +714,7 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-0 md:px-3 md:pb-0 space-y-4 w-full bg-mystic-900">
                     {displayedMessages.map((msg, idx) => (
-                        <motion.div 
+                        <MotionDiv 
                             key={`${currentPage}-${idx}`} // Force re-render on page switch for animation
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -732,7 +735,7 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
                                     />
                                 )}
                             </div>
-                        </motion.div>
+                        </MotionDiv>
                     ))}
 
                     {/* Improved Loading UI */}
@@ -755,7 +758,7 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
                 {/* ACTION CHOICES PANEL (SLIDEABLE) */}
                 <AnimatePresence>
                     {activeChoices.length > 0 && showActionChoices && !isLoading && (
-                        <motion.div 
+                        <MotionDiv 
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -763,7 +766,7 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
                         >
                              <div className="p-3 flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3">
                                 {activeChoices.map((choice, idx) => (
-                                    <motion.button
+                                    <MotionButton
                                         key={idx}
                                         whileHover={{ scale: 1.01, backgroundColor: "rgba(56, 189, 248, 0.1)" }}
                                         whileTap={{ scale: 0.98 }}
@@ -774,10 +777,10 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
                                             <GitBranch size={14} className="mt-0.5 text-slate-500 group-hover:text-mystic-accent shrink-0" />
                                             <span className="line-clamp-3">{choice}</span>
                                         </div>
-                                    </motion.button>
+                                    </MotionButton>
                                 ))}
                             </div>
-                        </motion.div>
+                        </MotionDiv>
                     )}
                 </AnimatePresence>
 
@@ -864,18 +867,18 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
         <AnimatePresence>
             {showMobileSidebar && (
                 <>
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm"
                         onClick={() => setShowMobileSidebar(false)}
                     />
-                    <motion.div 
+                    <MotionDiv 
                         initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
                         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                         className="fixed right-0 top-0 bottom-0 w-[85%] max-w-sm z-50 md:hidden shadow-2xl"
                     >
                         {sidebarContent}
-                    </motion.div>
+                    </MotionDiv>
                 </>
             )}
         </AnimatePresence>

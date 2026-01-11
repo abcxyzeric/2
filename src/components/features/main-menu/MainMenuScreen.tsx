@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { motion, Variants, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
   RotateCcw, 
@@ -18,7 +18,7 @@ import { useDatabaseStatus } from '../../../hooks/useDatabaseStatus';
 import { NavigationProps, GameState, SaveFile, WorldData } from '../../../types';
 import { dbService } from '../../../services/db/indexedDB';
 
-const containerVariants: Variants = {
+const containerVariants: any = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -29,7 +29,7 @@ const containerVariants: Variants = {
   }
 };
 
-const itemVariants: Variants = {
+const itemVariants: any = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 50 } }
 };
@@ -40,6 +40,8 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [saveList, setSaveList] = useState<SaveFile[]>([]);
   const [activeTab, setActiveTab] = useState<'auto' | 'manual'>('manual');
+  
+  const MotionDiv = motion.div as any;
 
   // --- Import Logic ---
   const handleImportClick = () => {
@@ -149,7 +151,7 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
         <div className="min-h-full flex flex-col items-center justify-center p-4 py-12 md:p-8 z-10">
           
-          <motion.div 
+          <MotionDiv 
             initial={{ opacity: 0, scale: 0.9, y: -30 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 1.2, ease: "easeOut" }}
@@ -162,15 +164,15 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
             <p className="mt-4 font-sans text-mystic-accent text-xs md:text-sm tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-80">
               bản nhái đủ thứ trên đời
             </p>
-          </motion.div>
+          </MotionDiv>
 
-          <motion.div 
+          <MotionDiv 
             variants={containerVariants}
             initial="hidden"
             animate="visible"
             className="flex flex-col gap-3 md:gap-4 w-full max-w-xs sm:max-w-sm px-2"
           >
-            <motion.div variants={itemVariants}>
+            <MotionDiv variants={itemVariants}>
               <Button 
                 variant="primary" 
                 className="w-full h-12 md:h-14 text-base md:text-lg border-mystic-accent/50"
@@ -179,9 +181,9 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
               >
                 Khởi tạo thế giới
               </Button>
-            </motion.div>
+            </MotionDiv>
 
-            <motion.div variants={itemVariants}>
+            <MotionDiv variants={itemVariants}>
               <Button 
                 variant="ghost" 
                 className="w-full h-10 md:h-12 justify-start pl-6 md:pl-8"
@@ -191,9 +193,9 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
               >
                 Tải lại Save
               </Button>
-            </motion.div>
+            </MotionDiv>
 
-            <motion.div variants={itemVariants}>
+            <MotionDiv variants={itemVariants}>
               <Button 
                 variant="ghost" 
                 className="w-full h-10 md:h-12 justify-start pl-6 md:pl-8" 
@@ -202,11 +204,11 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
               >
                   Nhập Save File
               </Button>
-            </motion.div>
+            </MotionDiv>
 
             <div className="w-full h-[1px] bg-slate-800 my-1 md:my-2" />
 
-            <motion.div variants={itemVariants}>
+            <MotionDiv variants={itemVariants}>
               <Button 
                 variant="ghost" 
                 className="w-full h-10 md:h-12 justify-start pl-6 md:pl-8 text-slate-500 hover:text-slate-300"
@@ -215,9 +217,9 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
               >
                 Cài đặt
               </Button>
-            </motion.div>
+            </MotionDiv>
 
-          </motion.div>
+          </MotionDiv>
         </div>
       </div>
 
@@ -227,7 +229,7 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
       <AnimatePresence>
           {showLoadModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                  <motion.div 
+                  <MotionDiv 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
@@ -304,7 +306,7 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
                               ))
                           )}
                       </div>
-                  </motion.div>
+                  </MotionDiv>
               </div>
           )}
       </AnimatePresence>

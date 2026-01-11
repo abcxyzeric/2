@@ -13,6 +13,7 @@ interface TawaPresetEditorProps {
 const TawaPresetEditor: React.FC<TawaPresetEditorProps> = ({ currentProtocol, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<'standard' | 'custom'>('standard');
+  const MotionDiv = motion.div as any;
 
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -44,7 +45,7 @@ const TawaPresetEditor: React.FC<TawaPresetEditorProps> = ({ currentProtocol, on
 
       <AnimatePresence>
         {isOpen && (
-            <motion.div 
+            <MotionDiv 
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
@@ -89,7 +90,7 @@ const TawaPresetEditor: React.FC<TawaPresetEditorProps> = ({ currentProtocol, on
                         *Chỉnh sửa trực tiếp prompt logic để thay đổi cách AI suy nghĩ. Nội dung này sẽ được nạp vào System Instruction.
                     </p>
                 </div>
-            </motion.div>
+            </MotionDiv>
         )}
       </AnimatePresence>
     </div>
