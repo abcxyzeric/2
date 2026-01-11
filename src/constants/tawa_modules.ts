@@ -337,6 +337,121 @@ Biểu hiện bên ngoài của <user> mà nhân vật khác quan sát thấy (s
 </control>`
     },
 
+    // --- WRITING STYLES (150-199) ---
+    {
+      id: 'style_core_rules',
+      label: '📝 Hướng dẫn viết (Gốc)',
+      injectKey: '<Writing_Style>',
+      position: 'system',
+      order: 150,
+      isActive: true,
+      content: `
+<Writing_Style>
+Presentation, not representation.
+
+Show actions, dialogue, and facts. Do not tell emotions, interpretations, or meanings.
+
+Do not use metaphors. Do not use similes. Write what happens directly.`
+    },
+    {
+      id: 'style_light_novel',
+      label: '📝 Văn Phong - Light Novel',
+      injectKey: '<Writing_Style>',
+      position: 'system',
+      order: 151,
+      isActive: true,
+      content: `
+<Writing_Style(Light Novel)>
+## Hướng dẫn thể văn Light Novel tự do gián tiếp:
+- Tông giọng: Light Novel kiểu Nhật
+- Độc giả: Học sinh cấp ba đến sinh viên đại học
+- Đặc tính thể văn: 
+  - Người kể chuyện chính là bản thân nhân vật: 
+    - Nội dung chính tập trung vào trải nghiệm cuộc sống ở thì hiện tại của nhân vật. Không tồn tại bất kỳ miêu tả khách quan nào, toàn bộ câu chữ trong phần trần thuật đều là sự bộc lộ ý thức chân thực của chính nhân vật, không có bất kỳ góc nhìn khách quan nào.
+    - Tăng cường cảm giác nhập vai: 
+      - Bộc bạch trạng thái chân thực nhất của người kể chuyện với dáng vẻ như khi người với người đang trò chuyện thật sự, mang lại cho độc giả một trải nghiệm đồng cảm nguyên bản.
+  - Tính đối thoại:
+    - Tính chất văn bản: Đối thoại thường ngày được văn bản hóa —— ngoại trừ một lượng nhỏ trần thuật bên ngoài cần thiết, về cơ bản được cấu thành từ đối thoại.
+    - Phản lạ hóa: 
+      - Sử dụng ngôn ngữ kiểu tán gẫu thường ngày, không cầu kỳ từ ngữ hoa mỹ phức tạp, lấy 「thể văn nói」 làm mục tiêu chính.
+    - Dựa vào lượng lớn đối thoại để thúc đẩy sự phát triển của cốt truyện, môi trường, thiết lập v.v... đều được chuyên chở thông qua đó.
+    - Độc thoại nội tâm là những lời đối thoại không nói ra miệng khi không có thính giả giả định.
+    - Trần thuật bên ngoài viết vắn tắt, không viết những miêu tả môi trường không cần thiết.
+  - Vẻ đẹp nhẹ nhàng thanh thoát: 
+    - Khử tính nghiêm túc: 
+      - Người kể chuyện dùng góc nhìn của thanh thiếu niên, chia sẻ câu chuyện mà bản thân cho là thú vị.
+      - Chối bỏ trách nhiệm 「văn dĩ tải đạo」, mục đích của tác phẩm là để độc giả cảm thấy thư giãn khi đọc.
+      - Tính truyện: Từ bỏ hàm nghĩa sâu xa ở tầng sở chỉ, yếu tố cốt lõi là tính truyện, tính dễ đọc ở tầng năng chỉ, cũng như việc có thú vị hay không.
+      - Tính giải trí: Sự sắp xếp cốt truyện được lạ hóa, mang tính giải trí mãnh liệt, độc giả có thể nhận được đủ loại trải nghiệm không ngờ tới.
+- Cấu trúc tự sự:
+  - Các phần cấu thành văn bản:
+    - Đối thoại: Lời nói của nhân vật
+    - Trần thuật phi đối thoại
+  Cấu trúc câu trần thuật:
+    - Lấy câu ngắn và vừa, đoạn văn tự nhiên độ dài trung bình làm chủ đạo, tổng thể đan xen dài ngắn, tránh đơn điệu.
+- Quy tắc viết:
+  - Quy tắc đối thoại：
+    - Đối thoại lấy lời dẫn trực tiếp tự do làm chủ đạo.
+    - Không sử dụng những từ loại như 「ai đó nói」, dùng hành động trước/sau khi nhân vật nói và độc thoại của người kể chuyện 「tôi」, để tiếp nối hoặc dẫn dắt đối thoại.
+    - Đối thoại liên tục giữa hai người phải lược bỏ hoàn toàn câu dẫn, thông qua logic mỗi người một câu để phân biệt người nói.
+    - Đối thoại tách thành đoạn độc lập: Trần thuật và đối thoại xuống dòng, 「đối thoại」 là đoạn văn độc lập.
+    - Quy phạm ký hiệu: Đối thoại dùng dấu ngoặc vuông góc 「」 bao bọc.
+  - Quy tắc trần thuật phi đối thoại:
+    - Câu chữ là sự trần thuật thành thật mang lập trường chủ quan, người kể chuyện trình bày trọn vẹn mọi thứ dưới lập trường đó mà không che đậy.
+    - Văn bản không tồn tại giọng điệu tác giả cao hơn nhân vật, triệt tiêu sự bình luận của tác giả.
+  - Quy tắc độc thoại：
+    - Dùng thể trực tiếp tự do thuật lại lời trong lòng chưa nói ra của nhân vật (tức độc thoại).
+    - Độc thoại nội tâm là những lời vốn không định nói ra.
+    - Độc thoại hòa lẫn vào trong dòng trần thuật, mang lại cảm giác tư tưởng không bị gián đoạn.
+  - Cách thức biểu đạt:
+    - Trần thuật bằng thì hiện tại, đảm bảo văn bản trôi chảy và cảm giác nhập vai.
+    - Miêu tả dứt khoát gãy gọn, không tô vẽ. Không quan tâm nhân vật nói thế nào hành động ra sao, đưa trực tiếp sự thật nguyên bản.
+    - Chỉ bạch miêu, không bao giờ so sánh ví von.
+- Sắp xếp câu chữ:
+    - Học tập các tác phẩm của các nhà xuất bản như Điện Kích Văn Khố, MF Văn Khố J v.v...
+  - Các tình huống nghiêm cấm rõ ràng:
+    - Sử dụng thẻ đối thoại, như 「anh ấy nói」, 「cô ấy nói khẽ」.
+    - Miêu tả tường thuật ngữ khí thần thái, thần thái ánh mắt của người nói.
+    - Suy đoán giải thích tâm lý/thần thái của nhân vật không phải tiêu điểm.
+    - Sử dụng thành ngữ và từ bốn chữ.
+ </Writing_Style(Light Novel)>`
+    },
+    {
+      id: 'style_spice_wolf',
+      label: '📝 Văn Phong - Sói và Gia vị',
+      injectKey: '<Writing_Style>',
+      position: 'system',
+      order: 152,
+      isActive: false,
+      content: `
+<Writing_Style(Sói và Gia vị)>
+## Phong cách văn chương Light Novel kiểu Sói và Gia vị
+- Cấu trúc thể văn:
+ - Bám sát chặt chẽ những điều mắt thấy, tai nghe của nhân vật chính, thông qua đôi mắt của nhân vật chính để trải nghiệm nội dung trò chơi, miêu tả môi trường, tương tác giữa các nhân vật, thay vì đẩy nhanh cốt truyện.
+ - Nhấn mạnh vào giác quan, tương tác giữa người với người của nhân vật chính, lồng ghép chủ đề trò chơi vào bối cảnh tự sự một cách tự nhiên.
+ - Cấm thẻ thoại: Nghiêm cấm các cụm như 'anh ấy nói', 'cô ấy hỏi', 'giọng anh ấy mang theo' v.v..., nhân vật có thể tự hiểu là ai đang nói.
+- Nhịp điệu câu văn:
+ - Tận dụng tốt dấu câu, không sử dụng khoảng trắng.
+ - Khi miêu tả thiết lập hoặc bầu không khí du hành, sử dụng các đoạn trần thuật dài ở mức độ vừa phải.
+- Quy tắc đối thoại: Đối thoại không chỉ để truyền đạt thông tin, mà còn dùng để xây dựng tính cách nhân vật, thúc đẩy cốt truyện.
+- Quy tắc miêu tả cảnh tượng:
+ - Lồng ghép yếu tố giác quan vào tự sự: Miêu tả cảnh tượng hòa quyện tự nhiên vào tiến trình câu chuyện, hành động và hồi ức của nhân vật chính, chứ không phải là những đoạn miêu tả phong cảnh độc lập dài dòng. Ví dụ, nhân vật nhìn thấy tu viện, liền nghĩ ngay đến chuyện làm ăn buôn bán có liên quan.
+ - Sàng lọc qua góc nhìn: Tất cả cảnh tượng đều được sàng lọc qua góc nhìn của nhân vật chính. Những gì nhân vật nhìn thấy là những sự vật mà nhân vật chính chú ý tới, tầm quan trọng của chúng cũng được quyết định bởi nhận thức của nhân vật chính (như giá trị của da thú, đặc tính của lúa mì).
+ - Miêu tả không chỉ để hiện lên hình ảnh, mà còn phục vụ cho câu chuyện, cung cấp thông tin bối cảnh, ám chỉ tình tiết, chú trọng vào những cảnh tượng có thể phản ánh bối cảnh câu chuyện, đặc sắc của địa điểm hoặc liên quan đến tình tiết/nhân vật (như sự hiếm hoi của cửa nẻo bằng sắt, đẳng cấp của da thú, độ mẩy của bông lúa).
+ - Vừa có miêu tả môi trường tĩnh (thảo nguyên, tu viện), vừa có yếu tố động (người vẫy tay, gã đầy tớ đang cày cấy, dân làng đuổi theo nhân vật, ẩn ý về dòng nước chảy).
+ </Writing_Style(Sói và Gia vị)>`
+    },
+    {
+      id: 'style_closer',
+      label: '📝 Hướng dẫn viết (Đóng thẻ)',
+      injectKey: '<Writing_Style>',
+      position: 'system',
+      order: 153,
+      isActive: true,
+      content: `
+</Writing_Style>`
+    },
+
     // --- BOTTOM (100+) ---
     {
       id: 'fw_anti_omniscience',
