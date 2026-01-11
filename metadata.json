@@ -1,0 +1,5 @@
+{
+  "name": " MythOS 0.1",
+  "description": "A text-based AI RPG utilizing IndexedDB and modern UI principles.",
+  "requestFramePermissions": []
+}
