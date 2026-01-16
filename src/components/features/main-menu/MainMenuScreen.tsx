@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -154,13 +155,15 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
   const handleLoadSave = (save: SaveFile) => {
       if (!onGameStart) return;
 
-      const worldData: WorldData = {
-          ...save.data.world,
-          savedState: {
-              history: save.data.history,
-              turnCount: save.data.turnCount
-          }
-      };
+      // save.data is fully compliant with WorldData structure including savedState
+      const worldData = save.data as WorldData;
+      
+      // Safety check just in case savedState is missing in older saves (unlikely given new structure but safe)
+      if (!worldData.savedState) {
+          showNotify("File save bị hỏng: Thiếu trạng thái game.", 'error');
+          return;
+      }
+
       onGameStart(worldData);
   };
 
@@ -299,42 +302,48 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
                                   Không có file save nào trong mục này.
                               </div>
                           ) : (
-                              filteredSaves.map((save) => (
-                                  <div 
-                                    key={save.id} 
-                                    onClick={() => handleLoadSave(save)}
-                                    className="group flex justify-between items-center bg-slate-800 border border-slate-700 p-4 rounded-lg cursor-pointer hover:border-mystic-accent hover:bg-slate-800/80 transition-all"
-                                  >
-                                      <div className="flex items-start gap-3">
-                                          <div className={`p-2 rounded-lg ${save.id.startsWith('auto') ? 'bg-orange-900/20 text-orange-400' : 'bg-blue-900/20 text-blue-400'}`}>
-                                              <FileText size={20} />
-                                          </div>
-                                          <div>
-                                              <h4 className="font-bold text-slate-200 group-hover:text-mystic-accent transition-colors">
-                                                  {save.name}
-                                              </h4>
-                                              <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
-                                                  <span className="flex items-center gap-1"><Clock size={10}/> {new Date(save.updatedAt).toLocaleString()}</span>
-                                                  <span>•</span>
-                                                  <span>Lượt: {save.data.turnCount || 0}</span>
-                                              </div>
-                                              {save.data.world.player?.name && (
-                                                  <div className="text-xs text-slate-500 mt-1">
-                                                      Người chơi: {save.data.world.player.name}
-                                                  </div>
-                                              )}
-                                          </div>
-                                      </div>
-                                      
-                                      <button 
-                                        onClick={(e) => handleDeleteClick(e, save.id)}
-                                        className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/10 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                                        title="Xóa save"
-                                      >
-                                          <Trash2 size={16} />
-                                      </button>
-                                  </div>
-                              ))
+                              filteredSaves.map((save) => {
+                                  // Safely access nested data with fallbacks
+                                  const turnCount = save.data?.savedState?.turnCount || 0;
+                                  const playerName = save.data?.player?.name;
+
+                                  return (
+                                    <div 
+                                      key={save.id} 
+                                      onClick={() => handleLoadSave(save)}
+                                      className="group flex justify-between items-center bg-slate-800 border border-slate-700 p-4 rounded-lg cursor-pointer hover:border-mystic-accent hover:bg-slate-800/80 transition-all"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={`p-2 rounded-lg ${save.id.startsWith('auto') ? 'bg-orange-900/20 text-orange-400' : 'bg-blue-900/20 text-blue-400'}`}>
+                                                <FileText size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-200 group-hover:text-mystic-accent transition-colors">
+                                                    {save.name}
+                                                </h4>
+                                                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                                                    <span className="flex items-center gap-1"><Clock size={10}/> {new Date(save.updatedAt).toLocaleString()}</span>
+                                                    <span>•</span>
+                                                    <span>Lượt: {turnCount}</span>
+                                                </div>
+                                                {playerName && (
+                                                    <div className="text-xs text-slate-500 mt-1">
+                                                        Người chơi: {playerName}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <button 
+                                          onClick={(e) => handleDeleteClick(e, save.id)}
+                                          className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/10 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                          title="Xóa save"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                  );
+                              })
                           )}
                       </div>
                   </MotionDiv>

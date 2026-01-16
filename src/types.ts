@@ -28,6 +28,8 @@ export interface AppSettings {
   topK: number;
   topP: number;
   thinkingBudgetLevel: ThinkingBudgetLevel;
+  // New Settings
+  streamResponse: boolean;
 }
 
 export interface SystemLog {
@@ -123,6 +125,9 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   choices?: string[]; // Added field to persist action choices
+  // New fields for Swipe/Regenerate
+  swipes?: string[]; // Array of message variations
+  swipeIndex?: number; // Index of the currently shown message
 }
 
 // --- NEW TAWA PRESET TYPES (REFACTOR V2) ---

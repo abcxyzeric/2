@@ -1,3 +1,4 @@
+
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { AppSettings, SaveFile, SystemLog } from '../../types';
 import { DEFAULT_SAFETY_SETTINGS } from '../../constants/promptTemplates';
@@ -76,7 +77,8 @@ class DatabaseService {
         temperature: 1.15,
         topK: 500,
         topP: 0.95,
-        thinkingBudgetLevel: 'high'
+        thinkingBudgetLevel: 'high',
+        streamResponse: false // Default streaming to false
     };
 
     if (!settings) {

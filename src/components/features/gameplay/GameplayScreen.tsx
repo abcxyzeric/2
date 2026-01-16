@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Menu, Shield, Zap, Target, Scroll, User, Download, Save, BrainCircuit, Globe, Brain, Loader2, ChevronLeft, ChevronRight, GitBranch, ChevronsDown, BookOpen, Plus, Trash2, Edit2, Check, X, GripHorizontal, Database, Table as TableIcon } from 'lucide-react';
+import { Send, Menu, Shield, Zap, Target, Scroll, User, Download, Save, BrainCircuit, Globe, Brain, Loader2, ChevronLeft, ChevronRight, GitBranch, ChevronsDown, BookOpen, Plus, Trash2, Edit2, Check, X, GripHorizontal, Database, Table as TableIcon, ToggleLeft, ToggleRight, RefreshCw, Repeat } from 'lucide-react';
 import { NavigationProps, GameState, ChatMessage, AppSettings, SaveFile, WorldData, TawaPresetConfig } from '../../../types';
 import { gameplayAiService } from '../../../services/ai/gameplay/service';
 import { dbService } from '../../../services/db/indexedDB';
@@ -326,7 +327,10 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
   // Notification State
   const [notification, setNotification] = useState<NotificationState>({ show: false, message: '', type: 'info' });
 
+  // Refs for auto-scrolling
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
 
   // Helper to show notification
   const showNotify = (message: string, type: NotificationType = 'info') => {
@@ -352,42 +356,45 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
               setTurnCount(worldDataWithState.savedState.turnCount);
           } else if (history.length === 0 && s) {
             // Initial Start: Generate opening
-            setIsLoading(true);
-            const opening = await gameplayAiService.generateStoryTurn(
-              "Hãy bắt đầu câu chuyện.", 
-              [], 
-              activeWorld, 
-              s,
-              tawaPresetConfig 
-            );
-            
-            const branchesContent = extractTagContent(opening, 'branches');
-            const choicesList = branchesContent 
-                ? branchesContent.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
-                : [];
-
-            const newMsg: ChatMessage = { 
-                role: 'model', 
-                text: opening, 
-                timestamp: Date.now(),
-                choices: choicesList
-            };
-            setHistory([newMsg]);
-            setIsLoading(false);
-            setTurnCount(1);
+            handleSendInitial(s);
           }
       }
     };
     init();
   }, []);
 
+  const handleSendInitial = async (currentSettings: AppSettings) => {
+     setIsLoading(true);
+     // Enable auto scroll for initial load
+     shouldAutoScrollRef.current = true;
+     
+     if (currentSettings.streamResponse) {
+         await runStreamGeneration("Hãy bắt đầu câu chuyện.", [], currentSettings);
+     } else {
+         const opening = await gameplayAiService.generateStoryTurn(
+              "Hãy bắt đầu câu chuyện.", 
+              [], 
+              activeWorld!, 
+              currentSettings,
+              tawaPresetConfig 
+          );
+          processAIResponse(opening, true);
+     }
+     setTurnCount(1);
+  };
+
   // --- LSR Data & History Sync Logic ---
   useEffect(() => {
       if (history.length > 0) {
           const lastMsg = history[history.length - 1];
           // Check if last message is from model and contains table data
+          // We check the 'text' (current swipe)
+          const currentText = (lastMsg.swipes && lastMsg.swipes.length > 0 && lastMsg.swipeIndex !== undefined) 
+                            ? lastMsg.swipes[lastMsg.swipeIndex] 
+                            : lastMsg.text;
+
           if (lastMsg.role === 'model') {
-              const tableContent = extractTagContent(lastMsg.text, 'table_stored');
+              const tableContent = extractTagContent(currentText, 'table_stored');
               if (tableContent) {
                   // Parse Text-based LSR data
                   const parsedData = LsrParser.parseLsrString(tableContent);
@@ -408,11 +415,29 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
     }
   }, [history.length]);
 
+  // Scroll handler to detect if user is at the bottom
+  const handleScroll = () => {
+    if (scrollViewportRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollViewportRef.current;
+        // Check if user is near bottom (e.g. 50px tolerance)
+        const isAtBottom = scrollHeight - (scrollTop + clientHeight) < 50;
+        shouldAutoScrollRef.current = isAtBottom;
+    }
+  };
+
   useEffect(() => {
-      if (chatEndRef.current) {
+      if (shouldAutoScrollRef.current && chatEndRef.current) {
           chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
-  }, [currentPage, history, isLoading]);
+  }, [history, isLoading]);
+  
+  // Force scroll when page changes (navigating history)
+  useEffect(() => {
+      if (chatEndRef.current) {
+          chatEndRef.current.scrollIntoView({ behavior: 'auto' });
+          shouldAutoScrollRef.current = true; 
+      }
+  }, [currentPage]);
 
 
   // --- Handlers ---
@@ -420,27 +445,179 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
     if (!inputValue.trim() || isLoading || !activeWorld || !settings) return;
 
     const userMsg: ChatMessage = { role: 'user', text: inputValue, timestamp: Date.now() };
-    setHistory(prev => [...prev, userMsg]);
+    const newHistory = [...history, userMsg];
+    setHistory(newHistory);
     setInputValue('');
-    setIsLoading(true);
+    
+    // Force auto-scroll on send
+    shouldAutoScrollRef.current = true;
+    
+    if (settings.streamResponse) {
+        await runStreamGeneration(userMsg.text, newHistory, settings);
+    } else {
+        setIsLoading(true);
+        const effectiveWorldData: WorldData = {
+            ...activeWorld,
+            config: {
+                ...activeWorld.config,
+                rules: dynamicRules
+            }
+        };
 
-    const effectiveWorldData: WorldData = {
-        ...activeWorld,
-        config: {
-            ...activeWorld.config,
-            rules: dynamicRules
-        }
-    };
+        const responseText = await gameplayAiService.generateStoryTurn(
+            userMsg.text,
+            newHistory, 
+            effectiveWorldData,
+            settings,
+            tawaPresetConfig
+        );
+        processAIResponse(responseText);
+    }
+  };
 
-    const responseText = await gameplayAiService.generateStoryTurn(
-      userMsg.text,
-      history, 
-      effectiveWorldData,
-      settings,
-      tawaPresetConfig
-    );
+  const handleRegenerate = async (msgIndex: number) => {
+      if (isLoading || !activeWorld || !settings) return;
+      
+      // Determine context: history up to msgIndex - 1 (the user message triggering this)
+      // msgIndex is the Model message index. history[msgIndex - 1] is the User message.
+      const prevHistory = history.slice(0, msgIndex);
+      const userTriggerMsg = history[msgIndex - 1];
+      const userInput = userTriggerMsg?.text || "Continue";
 
-    // Parse branches using extractTagContent
+      // Force auto-scroll on regenerate
+      shouldAutoScrollRef.current = true;
+
+      if (settings.streamResponse) {
+          await runStreamGeneration(userInput, prevHistory, settings, msgIndex);
+      } else {
+          setIsLoading(true);
+          const effectiveWorldData: WorldData = {
+              ...activeWorld,
+              config: {
+                  ...activeWorld.config,
+                  rules: dynamicRules
+              }
+          };
+
+          const responseText = await gameplayAiService.generateStoryTurn(
+              userInput,
+              prevHistory,
+              effectiveWorldData,
+              settings,
+              tawaPresetConfig
+          );
+          
+          updateMessageSwipes(msgIndex, responseText);
+          setIsLoading(false);
+      }
+  };
+
+  const runStreamGeneration = async (
+      userInput: string, 
+      currentHistory: ChatMessage[], 
+      currentSettings: AppSettings,
+      regenerateIndex?: number // If provided, we are regenerating an existing message
+  ) => {
+      setIsLoading(true);
+      const effectiveWorldData: WorldData = {
+          ...activeWorld!,
+          config: {
+              ...activeWorld!.config,
+              rules: dynamicRules
+          }
+      };
+
+      let targetIndex = regenerateIndex;
+
+      // If NOT regenerating, create a placeholder message first
+      if (targetIndex === undefined) {
+          const placeholderMsg: ChatMessage = {
+              role: 'model',
+              text: "",
+              timestamp: Date.now(),
+              swipes: [""],
+              swipeIndex: 0,
+              choices: []
+          };
+          // We need to set history with placeholder
+          setHistory(prev => {
+              const updated = [...prev, placeholderMsg];
+              targetIndex = updated.length - 1; 
+              return updated;
+          });
+      } else {
+          // If regenerating, prepare the new swipe slot
+          setHistory(prev => {
+              const updated = [...prev];
+              const msg = { ...updated[targetIndex!] };
+              const newSwipes = [...(msg.swipes || [msg.text]), ""]; // Add empty slot
+              msg.swipes = newSwipes;
+              msg.swipeIndex = newSwipes.length - 1;
+              msg.text = ""; // Clear current text for streaming visual
+              updated[targetIndex!] = msg;
+              return updated;
+          });
+      }
+
+      // Small delay to ensure state update (optional but safe)
+      await new Promise(r => setTimeout(r, 0));
+
+      const stream = gameplayAiService.generateStoryTurnStream(
+          userInput,
+          currentHistory,
+          effectiveWorldData,
+          currentSettings,
+          tawaPresetConfig
+      );
+
+      let accumulatedText = "";
+
+      for await (const chunk of stream) {
+          accumulatedText += chunk;
+          
+          // Update the specific message in history
+          setHistory(prev => {
+              if (targetIndex === undefined || !prev[targetIndex]) return prev;
+              
+              const updated = [...prev];
+              const msg = { ...updated[targetIndex] };
+              
+              // Update the current swipe
+              const swipes = [...(msg.swipes || [""])];
+              const currentSwipeIdx = msg.swipeIndex || 0;
+              swipes[currentSwipeIdx] = accumulatedText;
+              
+              msg.swipes = swipes;
+              msg.text = accumulatedText; // Always sync text for display/compatibility
+              
+              updated[targetIndex] = msg;
+              return updated;
+          });
+      }
+
+      // Finalize parsing (Branches/Choices)
+      setHistory(prev => {
+           if (targetIndex === undefined || !prev[targetIndex]) return prev;
+           const updated = [...prev];
+           const msg = { ...updated[targetIndex] };
+           
+           const branchesContent = extractTagContent(accumulatedText, 'branches');
+           const choicesList = branchesContent 
+              ? branchesContent.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
+              : [];
+           
+           msg.choices = choicesList;
+           updated[targetIndex] = msg;
+           return updated;
+      });
+
+      if (targetIndex !== undefined && regenerateIndex === undefined) {
+          setTurnCount(prev => prev + 1);
+      }
+      setIsLoading(false);
+  };
+
+  const processAIResponse = (responseText: string, initial = false) => {
     const branchesContent = extractTagContent(responseText, 'branches');
     const choicesList = branchesContent 
         ? branchesContent.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
@@ -450,12 +627,37 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
         role: 'model', 
         text: responseText, 
         timestamp: Date.now(),
-        choices: choicesList
+        choices: choicesList,
+        swipes: [responseText],
+        swipeIndex: 0
     };
     
     setHistory(prev => [...prev, modelMsg]);
-    setTurnCount(prev => prev + 1);
+    if (!initial) setTurnCount(prev => prev + 1);
     setIsLoading(false);
+  };
+
+  const updateMessageSwipes = (index: number, newText: string) => {
+       setHistory(prev => {
+            const updated = [...prev];
+            const msg = { ...updated[index] };
+            
+            const branchesContent = extractTagContent(newText, 'branches');
+            const choicesList = branchesContent 
+                ? branchesContent.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
+                : [];
+
+            const currentSwipes = msg.swipes || [msg.text];
+            const newSwipes = [...currentSwipes, newText];
+            
+            msg.swipes = newSwipes;
+            msg.swipeIndex = newSwipes.length - 1;
+            msg.text = newText;
+            msg.choices = choicesList; // Update choices to latest generation
+
+            updated[index] = msg;
+            return updated;
+       });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -469,18 +671,75 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
     setHistory(prev => {
         const newHistory = [...prev];
         if (newHistory[index]) {
-            newHistory[index] = { ...newHistory[index], text: newText };
-            
-            if (newHistory[index].role === 'model') {
+            // Update raw text
+            const msg = { ...newHistory[index] };
+            msg.text = newText;
+
+            // Also update the specific swipe if it exists
+            if (msg.swipes && msg.swipeIndex !== undefined) {
+                const newSwipes = [...msg.swipes];
+                newSwipes[msg.swipeIndex] = newText;
+                msg.swipes = newSwipes;
+            }
+
+            if (msg.role === 'model') {
                 const branchesContent = extractTagContent(newText, 'branches');
                 const choicesList = branchesContent 
                     ? branchesContent.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
                     : [];
-                newHistory[index].choices = choicesList;
+                msg.choices = choicesList;
             }
+            newHistory[index] = msg;
         }
         return newHistory;
     });
+  };
+
+  const handleSwipe = (msgIndex: number, direction: 'prev' | 'next') => {
+      setHistory(prev => {
+          const updated = [...prev];
+          const msg = { ...updated[msgIndex] };
+          
+          if (!msg.swipes || msg.swipes.length === 0) return prev;
+          
+          const currentIndex = msg.swipeIndex || 0;
+          let newIndex = currentIndex;
+
+          if (direction === 'prev') {
+              if (currentIndex > 0) newIndex--;
+          } else {
+              // Logic for Next
+              if (currentIndex < msg.swipes.length - 1) {
+                  newIndex++;
+              } else {
+                  // Trigger Regenerate if at the end
+                  // We can't trigger async regenerate inside setState. 
+                  // So we handle it outside, but here we just return if we are at max.
+                  return prev; 
+              }
+          }
+
+          msg.swipeIndex = newIndex;
+          msg.text = msg.swipes[newIndex];
+          
+          // Re-parse choices for this specific swipe version
+          const branchesContent = extractTagContent(msg.text, 'branches');
+          msg.choices = branchesContent 
+              ? branchesContent.split('\n').map(c => c.trim()).filter(c => c.length > 0) 
+              : [];
+
+          updated[msgIndex] = msg;
+          return updated;
+      });
+      
+      // Handle Regenerate Trigger separately outside
+      const msg = history[msgIndex];
+      const currentIndex = msg.swipeIndex || 0;
+      const total = msg.swipes ? msg.swipes.length : 1;
+      
+      if (direction === 'next' && currentIndex === total - 1) {
+          handleRegenerate(msgIndex);
+      }
   };
 
   const handleSaveAndExit = async () => {
@@ -543,6 +802,52 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
   };
+  
+  const toggleStreamResponse = async () => {
+      if (!settings) return;
+      const newSetting = !settings.streamResponse;
+      const updated = { ...settings, streamResponse: newSetting };
+      setSettings(updated);
+      await dbService.saveSettings(updated);
+  };
+
+  // --- RENDER CONTENT HELPER ---
+  const renderSidebarContent = () => (
+      <div className="h-full flex flex-col bg-mystic-900 shadow-xl">
+          <div className="p-4 border-b border-slate-800 bg-mystic-800/50 shrink-0 space-y-2">
+              <button onClick={() => setShowCharModal(true)} className="w-full flex items-center gap-3 p-3 bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all group">
+                  <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center shrink-0 group-hover:border-mystic-accent"><User className="text-mystic-accent" size={20}/></div>
+                  <div className="text-left"><h3 className="font-bold text-slate-200 text-sm">{activeWorld.player.name}</h3></div>
+              </button>
+              <button onClick={() => setShowGlobalModal(true)} className="w-full flex items-center gap-3 p-3 bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all group">
+                  <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center shrink-0 group-hover:border-green-400"><Globe className="text-green-400" size={20}/></div>
+                  <div className="text-left"><h3 className="font-bold text-slate-200 text-sm">Thông tin toàn cục</h3></div>
+              </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
+              {/* Stream Toggle */}
+              <button 
+                  onClick={toggleStreamResponse}
+                  className="w-full p-3 flex justify-between items-center text-left hover:bg-slate-700/50 transition-colors bg-slate-800/30 rounded-lg border border-slate-700"
+              >
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                       <Zap size={16} className={settings?.streamResponse ? "text-yellow-400" : "text-slate-500"} />
+                       Stream Response
+                  </div>
+                  <div className={settings?.streamResponse ? "text-green-400" : "text-slate-600"}>
+                       {settings?.streamResponse ? <ToggleRight size={24}/> : <ToggleLeft size={24}/>}
+                  </div>
+              </button>
+
+              <RulesManager rules={dynamicRules} onUpdate={setDynamicRules} />
+              <TawaPresetManager onConfigChange={setTawaPresetConfig} />
+          </div>
+          <div className="p-4 border-t border-slate-800 bg-mystic-900/95 space-y-2 mt-auto shrink-0">
+              <Button variant="outline" className="w-full text-xs h-10 justify-start pl-4" icon={<Download size={14}/>} onClick={handleDownloadSave}>Tải file Save (.json)</Button>
+              <Button variant="danger" className="w-full text-xs h-10 justify-start pl-4" icon={<Save size={14}/>} onClick={handleSaveAndExit} isLoading={isSaving}>Lưu & Thoát</Button>
+          </div>
+      </div>
+  );
 
   // --- RENDER ---
   if (!activeWorld) return null;
@@ -578,27 +883,75 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
             </header>
 
             {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-0 md:px-3 md:pb-0 space-y-4 w-full bg-mystic-900">
-                    {displayedMessages.map((msg, idx) => (
-                        <MotionDiv 
-                            key={`${currentPage}-${idx}`}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
-                            <div className={`relative rounded-lg p-3 md:p-5 leading-relaxed shadow-md text-base ${
-                                msg.role === 'user' 
-                                    ? 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tr-none max-w-[90%] md:max-w-[85%]' 
-                                    : 'bg-transparent text-slate-300 pl-0 w-full'
-                            }`}>
-                                <TawaMessageRenderer 
-                                    text={msg.text}
-                                    onUpdate={(newText) => handleMessageUpdate(startIndex + idx, newText)}
-                                />
-                            </div>
-                        </MotionDiv>
-                    ))}
-                    {isLoading && (
+            <div 
+                ref={scrollViewportRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-0 md:px-3 md:pb-0 space-y-4 w-full bg-mystic-900"
+            >
+                    {displayedMessages.map((msg, idx) => {
+                        const globalIndex = startIndex + idx;
+                        const isModel = msg.role === 'model';
+                        const swipes = msg.swipes || [msg.text];
+                        const swipeIndex = msg.swipeIndex || 0;
+                        const displayText = swipes[swipeIndex] || "";
+
+                        return (
+                            <MotionDiv 
+                                key={`${currentPage}-${idx}`}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`flex w-full ${!isModel ? 'justify-end' : 'justify-start'}`}
+                            >
+                                <div className={`relative rounded-lg p-3 md:p-5 leading-relaxed shadow-md text-base flex flex-col gap-2 ${
+                                    !isModel 
+                                        ? 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tr-none max-w-[90%] md:max-w-[85%]' 
+                                        : 'bg-transparent text-slate-300 pl-0 w-full'
+                                }`}>
+                                    <TawaMessageRenderer 
+                                        text={displayText}
+                                        onUpdate={(newText) => handleMessageUpdate(globalIndex, newText)}
+                                    />
+
+                                    {/* Swipe Controls for AI Messages */}
+                                    {isModel && (
+                                        <div className="flex items-center gap-2 mt-1 select-none w-full border-t border-slate-800/50 pt-2">
+                                            <div className="flex items-center bg-slate-800/50 rounded-lg p-0.5 border border-slate-700/50">
+                                                <button 
+                                                    onClick={() => handleSwipe(globalIndex, 'prev')}
+                                                    disabled={swipeIndex === 0}
+                                                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                                    title="Phiên bản cũ hơn"
+                                                >
+                                                    <ChevronLeft size={14} />
+                                                </button>
+                                                <span className="text-[10px] font-mono text-slate-500 px-2 min-w-[40px] text-center">
+                                                    {swipeIndex + 1}/{swipes.length}
+                                                </span>
+                                                <button 
+                                                    onClick={() => handleSwipe(globalIndex, 'next')}
+                                                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                                                    title={swipeIndex === swipes.length - 1 ? "Tạo lại (Regenerate)" : "Phiên bản mới hơn"}
+                                                >
+                                                    {swipeIndex === swipes.length - 1 ? (
+                                                        <RefreshCw size={14} className={isLoading ? "animate-spin text-mystic-accent" : ""} />
+                                                    ) : (
+                                                        <ChevronRight size={14} />
+                                                    )}
+                                                </button>
+                                            </div>
+                                            {swipes.length > 1 && (
+                                                <span className="text-[10px] text-slate-600 italic">
+                                                    {swipeIndex === swipes.length - 1 ? "Lastest" : "History"}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </MotionDiv>
+                        );
+                    })}
+                    {isLoading && !history[history.length - 1]?.text && (
+                        /* Only show loader if we are NOT streaming (if streaming, text updates live) */
                         <div className="flex flex-col items-center justify-center p-6 space-y-3 animate-fade-in w-full border-t border-slate-800/30">
                             <Loader2 className="w-8 h-8 text-mystic-accent animate-spin" />
                             <span className="text-sm font-medium text-slate-400 animate-pulse">
@@ -677,30 +1030,30 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
             </div>
         </div>
 
-        {/* SIDEBAR */}
+        {/* SIDEBAR - DESKTOP */}
         <div className="hidden md:block w-80 shrink-0 h-full relative z-20 border-l border-slate-800">
-            {/* Sidebar content logic (reused for mobile) */}
-            <div className="h-full flex flex-col bg-mystic-900 shadow-xl">
-                <div className="p-4 border-b border-slate-800 bg-mystic-800/50 shrink-0 space-y-2">
-                    <button onClick={() => setShowCharModal(true)} className="w-full flex items-center gap-3 p-3 bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all group">
-                        <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center shrink-0 group-hover:border-mystic-accent"><User className="text-mystic-accent" size={20}/></div>
-                        <div className="text-left"><h3 className="font-bold text-slate-200 text-sm">{activeWorld.player.name}</h3></div>
-                    </button>
-                    <button onClick={() => setShowGlobalModal(true)} className="w-full flex items-center gap-3 p-3 bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all group">
-                        <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center shrink-0 group-hover:border-green-400"><Globe className="text-green-400" size={20}/></div>
-                        <div className="text-left"><h3 className="font-bold text-slate-200 text-sm">Thông tin toàn cục</h3></div>
-                    </button>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-6">
-                    <RulesManager rules={dynamicRules} onUpdate={setDynamicRules} />
-                    <TawaPresetManager onConfigChange={setTawaPresetConfig} />
-                </div>
-                <div className="p-4 border-t border-slate-800 bg-mystic-900/95 space-y-2 mt-auto shrink-0">
-                    <Button variant="outline" className="w-full text-xs h-10 justify-start pl-4" icon={<Download size={14}/>} onClick={handleDownloadSave}>Tải file Save (.json)</Button>
-                    <Button variant="danger" className="w-full text-xs h-10 justify-start pl-4" icon={<Save size={14}/>} onClick={handleSaveAndExit} isLoading={isSaving}>Lưu & Thoát</Button>
-                </div>
-            </div>
+            {renderSidebarContent()}
         </div>
+
+        {/* SIDEBAR - MOBILE OVERLAY */}
+        <AnimatePresence>
+            {showMobileSidebar && (
+                <>
+                    <MotionDiv 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm"
+                        onClick={() => setShowMobileSidebar(false)}
+                    />
+                    <MotionDiv
+                        initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                        className="fixed top-0 right-0 h-full w-4/5 max-w-sm bg-mystic-900 z-50 border-l border-slate-700 md:hidden"
+                    >
+                        {renderSidebarContent()}
+                    </MotionDiv>
+                </>
+            )}
+        </AnimatePresence>
 
         {/* MODALS */}
         {/* Character Modal (UPDATED WITH FULL INFO) */}
