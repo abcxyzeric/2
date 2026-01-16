@@ -16,9 +16,21 @@ interface NotificationModalProps {
   message: string;
   onClose: () => void;
   type?: NotificationType;
+  // Confirmation Props
+  onConfirm?: () => void;
+  confirmText?: string;
+  cancelText?: string;
 }
 
-const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, message, onClose, type = 'info' }) => {
+const NotificationModal: React.FC<NotificationModalProps> = ({ 
+    isOpen, 
+    message, 
+    onClose, 
+    type = 'info',
+    onConfirm,
+    confirmText = 'Xác nhận',
+    cancelText = 'Hủy'
+}) => {
   const MotionDiv = motion.div as any;
   
   const getIcon = () => {
@@ -45,9 +57,22 @@ const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, message, 
                     {getIcon()}
                 </div>
                 <p className="text-slate-200 text-sm leading-relaxed font-medium">{message}</p>
-                <Button onClick={onClose} variant="primary" className="w-full h-10 mt-2">
-                    Đóng
-                </Button>
+                
+                {/* Conditional Rendering for Confirmation vs Simple Alert */}
+                {onConfirm ? (
+                    <div className="flex gap-3 w-full mt-2">
+                        <Button onClick={onClose} variant="ghost" className="flex-1 h-10 border border-slate-700">
+                            {cancelText}
+                        </Button>
+                        <Button onClick={onConfirm} variant="danger" className="flex-1 h-10">
+                            {confirmText}
+                        </Button>
+                    </div>
+                ) : (
+                    <Button onClick={onClose} variant="primary" className="w-full h-10 mt-2">
+                        Đóng
+                    </Button>
+                )}
             </div>
           </MotionDiv>
         </div>

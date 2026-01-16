@@ -9,7 +9,8 @@ import {
   X,
   Clock,
   FileText,
-  Trash2
+  Trash2,
+  CheckCircle
 } from 'lucide-react';
 import Button from '../../ui/Button';
 import StatusFooter from './StatusFooter';
@@ -43,6 +44,12 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
   
   // Notification State
   const [notification, setNotification] = useState<NotificationState>({ show: false, message: '', type: 'info' });
+  
+  // Delete Confirmation State
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  
+  // Toast State (Auto Dismiss)
+  const [toast, setToast] = useState<{show: boolean, message: string}>({show: false, message: ''});
 
   const MotionDiv = motion.div as any;
 
@@ -50,6 +57,16 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
   const showNotify = (message: string, type: NotificationType = 'info') => {
       setNotification({ show: true, message, type });
   };
+
+  // Toast Timer
+  useEffect(() => {
+    if (toast.show) {
+        const timer = setTimeout(() => {
+            setToast({ ...toast, show: false });
+        }, 3000); // 3 seconds
+        return () => clearTimeout(timer);
+    }
+  }, [toast.show]);
 
   // --- Import Logic ---
   const handleImportClick = () => {
@@ -112,14 +129,26 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
       setShowLoadModal(true);
   };
 
-  const handleDeleteSave = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
-      if (confirm("Bạn có chắc chắn muốn xóa file save này?")) {
-          await dbService.deleteSave(id);
-          const newSaves = await dbService.getAllSaves();
-          newSaves.sort((a, b) => b.updatedAt - a.updatedAt);
-          setSaveList(newSaves);
-      }
+      setDeleteTargetId(id); // Trigger confirmation modal
+  };
+
+  const confirmDelete = async () => {
+      if (!deleteTargetId) return;
+      
+      await dbService.deleteSave(deleteTargetId);
+      
+      // Update UI List
+      const newSaves = await dbService.getAllSaves();
+      newSaves.sort((a, b) => b.updatedAt - a.updatedAt);
+      setSaveList(newSaves);
+      
+      // Cleanup Modal
+      setDeleteTargetId(null);
+      
+      // Show Toast instead of Popup
+      setToast({ show: true, message: "Đã xóa file save thành công!" });
   };
 
   const handleLoadSave = (save: SaveFile) => {
@@ -141,7 +170,7 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
   });
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex flex-col h-full w-full relative">
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -298,7 +327,7 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
                                       </div>
                                       
                                       <button 
-                                        onClick={(e) => handleDeleteSave(e, save.id)}
+                                        onClick={(e) => handleDeleteClick(e, save.id)}
                                         className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/10 rounded-full transition-colors opacity-0 group-hover:opacity-100"
                                         title="Xóa save"
                                       >
@@ -313,12 +342,39 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
           )}
       </AnimatePresence>
 
+      {/* Confirmation Modal for Deletion */}
+      <NotificationModal 
+        isOpen={!!deleteTargetId}
+        message="Bạn có chắc chắn muốn xóa file save này? Hành động này không thể hoàn tác."
+        type="warning"
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={confirmDelete}
+        confirmText="Xóa ngay"
+        cancelText="Giữ lại"
+      />
+
+      {/* General Notification Modal (Errors/Info) */}
       <NotificationModal 
         isOpen={notification.show} 
         message={notification.message} 
         type={notification.type}
         onClose={() => setNotification(prev => ({ ...prev, show: false }))} 
       />
+
+      {/* Success Toast Notification */}
+      <AnimatePresence>
+        {toast.show && (
+            <motion.div 
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                className="fixed bottom-16 right-4 md:bottom-10 md:right-10 z-[100] bg-mystic-800 border border-green-500/50 text-green-400 px-6 py-3 rounded-lg shadow-[0_0_20px_rgba(34,197,94,0.2)] flex items-center gap-3 backdrop-blur-md"
+            >
+                <CheckCircle size={20} />
+                <span className="font-bold text-sm">{toast.message}</span>
+            </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

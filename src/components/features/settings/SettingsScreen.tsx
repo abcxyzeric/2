@@ -87,17 +87,23 @@ const SettingsScreen: React.FC<NavigationProps> = ({ onNavigate }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                     {/* Temperature */}
                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm items-center">
                             <label className="font-medium text-slate-300">Temperature (Độ sáng tạo)</label>
-                            <span className="text-mystic-accent font-mono">{settings.temperature}</span>
+                            <input 
+                                type="number" 
+                                min="0" max="2" step="0.01" 
+                                value={settings.temperature}
+                                onChange={(e) => handleChange('temperature', parseFloat(e.target.value))}
+                                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs w-16 text-center text-mystic-accent outline-none focus:border-mystic-accent"
+                            />
                         </div>
                         <input 
-                            type="range" min="0" max="2" step="0.1" 
+                            type="range" min="0" max="2" step="0.01" 
                             value={settings.temperature}
                             onChange={(e) => handleChange('temperature', parseFloat(e.target.value))}
                             className="w-full accent-mystic-accent bg-slate-700 h-1 rounded-lg appearance-none cursor-pointer"
                         />
-                        <p className="text-[10px] text-slate-500">Cao: Sáng tạo, khó đoán. Thấp: Chính xác, lặp lại.</p>
+                        <p className="text-[10px] text-slate-500">Cao: Sáng tạo, khó đoán. Thấp: Chính xác, lặp lại. (Mặc định: 1.15)</p>
                     </div>
 
                     {/* Thinking Budget */}
@@ -106,13 +112,13 @@ const SettingsScreen: React.FC<NavigationProps> = ({ onNavigate }) => {
                             <label className="font-medium text-slate-300 flex items-center gap-1">
                                 Thinking Budget <BrainCircuit size={14} className="text-purple-400"/>
                             </label>
-                            <span className="text-purple-400 font-mono uppercase">{settings.thinkingBudgetLevel}</span>
+                            <span className="text-purple-400 font-mono uppercase text-xs border border-purple-900/50 bg-purple-900/20 px-2 py-0.5 rounded">{settings.thinkingBudgetLevel}</span>
                         </div>
                         <select 
                             value={settings.thinkingBudgetLevel}
                             onChange={(e) => handleChange('thinkingBudgetLevel', e.target.value as ThinkingBudgetLevel)}
                             className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-slate-200 focus:border-mystic-accent outline-none"
-                            disabled={settings.aiModel !== 'gemini-3-pro-preview'} // Example restriction
+                            disabled={settings.aiModel !== 'gemini-3-pro-preview'} 
                         >
                             <option value="auto">Auto (0 tokens)</option>
                             <option value="low">Low (4,096 tokens)</option>
@@ -124,12 +130,18 @@ const SettingsScreen: React.FC<NavigationProps> = ({ onNavigate }) => {
 
                     {/* Top K */}
                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm items-center">
                             <label className="font-medium text-slate-300">Top K</label>
-                            <span className="text-mystic-accent font-mono">{settings.topK}</span>
+                            <input 
+                                type="number" 
+                                min="1" max="500" step="1" 
+                                value={settings.topK}
+                                onChange={(e) => handleChange('topK', parseInt(e.target.value))}
+                                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs w-16 text-center text-mystic-accent outline-none focus:border-mystic-accent"
+                            />
                         </div>
                         <input 
-                            type="range" min="1" max="100" step="1" 
+                            type="range" min="1" max="500" step="1" 
                             value={settings.topK}
                             onChange={(e) => handleChange('topK', parseInt(e.target.value))}
                             className="w-full accent-mystic-accent bg-slate-700 h-1 rounded-lg appearance-none cursor-pointer"
@@ -138,9 +150,15 @@ const SettingsScreen: React.FC<NavigationProps> = ({ onNavigate }) => {
 
                     {/* Top P */}
                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-sm items-center">
                             <label className="font-medium text-slate-300">Top P</label>
-                            <span className="text-mystic-accent font-mono">{settings.topP}</span>
+                            <input 
+                                type="number" 
+                                min="0" max="1" step="0.01" 
+                                value={settings.topP}
+                                onChange={(e) => handleChange('topP', parseFloat(e.target.value))}
+                                className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs w-16 text-center text-mystic-accent outline-none focus:border-mystic-accent"
+                            />
                         </div>
                         <input 
                             type="range" min="0" max="1" step="0.01" 
