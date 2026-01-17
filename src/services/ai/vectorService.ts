@@ -1,5 +1,5 @@
 
-import { ai } from "../client";
+import { ai } from "./client";
 import { dbService, VectorData } from "../db/indexedDB";
 import { ChatMessage } from "../../types";
 
@@ -30,11 +30,11 @@ export const vectorService = {
             
             const result = await ai.models.embedContent({
                 model: 'text-embedding-004',
-                content: {
+                contents: {
                     parts: [{ text }]
                 }
             });
-            return result.embedding?.values || null;
+            return result.embeddings?.[0]?.values || null;
         } catch (error) {
             console.error("Error generating embedding:", error);
             return null;
