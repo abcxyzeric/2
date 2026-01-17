@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Save, Sparkles } from 'lucide-react';
@@ -55,7 +56,13 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
     setIsGenerating(true);
     try {
       const contextData = { name, type, genre: '' }; // Genre could be passed in props for better context if available
-      const content = await worldAiService.generateFieldContent('entity', field, contextData);
+      
+      // Determine current value for enrichment
+      let currentValue = "";
+      if (field === 'description') currentValue = description;
+      if (field === 'personality') currentValue = personality;
+
+      const content = await worldAiService.generateFieldContent('entity', field, contextData, 'gemini-3-pro-preview', currentValue);
       
       if (field === 'description') {
           setDescription(content);
@@ -131,9 +138,10 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
                 onClick={() => handleAiSuggest('description')} 
                 disabled={isGenerating}
                 className="text-xs flex items-center gap-1 text-mystic-accent/80 hover:text-mystic-accent"
+                title={description ? "Cải thiện nội dung" : "Tạo mới ngẫu nhiên"}
               >
                 {isGenerating ? <span className="animate-spin">⏳</span> : <Sparkles size={12} />} 
-                AI Gợi ý
+                {description ? "AI Cải thiện" : "AI Gợi ý"}
               </button>
             </label>
             <textarea 
@@ -152,9 +160,10 @@ const EntityForm: React.FC<EntityFormProps> = ({ initialData, onSave, onCancel }
                     onClick={() => handleAiSuggest('personality')} 
                     disabled={isGenerating}
                     className="text-xs flex items-center gap-1 text-mystic-accent/80 hover:text-mystic-accent"
+                    title={personality ? "Cải thiện nội dung" : "Tạo mới ngẫu nhiên"}
                   >
                     {isGenerating ? <span className="animate-spin">⏳</span> : <Sparkles size={12} />} 
-                    AI Gợi ý
+                    {personality ? "AI Cải thiện" : "AI Gợi ý"}
                   </button>
               </label>
               <input 

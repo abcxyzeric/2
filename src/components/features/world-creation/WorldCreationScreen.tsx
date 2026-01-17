@@ -1,3 +1,4 @@
+
 import React, { useReducer, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -55,7 +56,7 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
     }
   }, [initialData]);
 
-  // --- AI Helper Function (UPDATED WITH VALIDATION) ---
+  // --- AI Helper Function (UPDATED WITH VALIDATION & ENRICHMENT) ---
   const handleAiGenerate = async (field: string, category: 'player' | 'world') => {
     // 1. Validation Logic
     if (category === 'player') {
@@ -78,7 +79,17 @@ const WorldCreationScreen: React.FC<WorldCreationProps> = ({ onNavigate, onGameS
         ? { ...state.player, genre: state.world.genre } 
         : { genre: state.world.genre, worldName: state.world.worldName };
 
-      const content = await worldAiService.generateFieldContent(category, field, contextData, aiModel);
+      // 3. Get Current Value for Enrichment
+      let currentValue = "";
+      if (category === 'player') {
+          // @ts-ignore - Dynamic access
+          currentValue = state.player[field] || "";
+      } else {
+          // @ts-ignore - Dynamic access
+          currentValue = state.world[field] || "";
+      }
+
+      const content = await worldAiService.generateFieldContent(category, field, contextData, aiModel, currentValue);
       
       // Dispatch based on field type
       if (['name', 'gender', 'age', 'personality', 'background', 'appearance', 'skills', 'goal'].includes(field)) {
@@ -649,10 +660,10 @@ const TextAreaGroup = ({ label, value, onChange, onAi, height = 'h-24', loading 
                     }} 
                     disabled={loading} 
                     className="group flex items-center gap-1.5 px-2 py-0.5 rounded border border-slate-700 bg-slate-800 hover:bg-mystic-accent/10 hover:border-mystic-accent hover:text-mystic-accent text-xs text-slate-400 transition-all cursor-pointer z-10"
-                    title="Sử dụng AI để tạo nội dung gợi ý"
+                    title={value ? "Cải thiện nội dung" : "Tạo mới ngẫu nhiên"}
                 >
                     {loading ? <span className="animate-spin">⏳</span> : <Sparkles size={12} />} 
-                    <span>AI Gợi ý</span>
+                    <span>{value ? "AI Cải thiện" : "AI Gợi ý"}</span>
                 </button>
             )}
         </div>

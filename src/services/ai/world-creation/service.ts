@@ -1,6 +1,7 @@
 
 import { Type } from "@google/genai";
 import { ai } from "../client";
+import { buildWorldCreationPrompt, getWorldCreationSystemInstruction } from "./prompts";
 
 export const worldAiService = {
   // --- WORLD CREATION ASSISTANT (STRICT LOGIC) ---
@@ -9,65 +10,53 @@ export const worldAiService = {
     category: 'player' | 'world' | 'entity', 
     field: string, 
     contextData: any, 
-    modelName: string = 'gemini-3-pro-preview'
+    modelName: string = 'gemini-3-pro-preview',
+    currentInput?: string // New Parameter for Enrich Mode
   ): Promise<string> {
     try {
-      let systemInstruction = "";
+      // 1. Get System Instruction based on Mode (Create vs Enrich)
+      const systemInstruction = getWorldCreationSystemInstruction(category, field, currentInput);
+
+      // 2. Build User Prompt
+      // Note: buildWorldCreationPrompt now handles the switching logic inside
       let userPrompt = "";
 
-      // 1. Build Prompt based on Category
-      if (category === 'player') {
-         systemInstruction = `Bạn là trợ lý sáng tạo nhân vật RPG chuyên nghiệp.
-Nhiệm vụ: Viết nội dung cho trường dữ liệu [${field}] của nhân vật chính.
-Quy tắc Output:
-- Chỉ trả về nội dung mô tả. KHÔNG viết lời dẫn (như "Dưới đây là...", "Chắc chắn rồi...").
-- Ngôn ngữ: Tiếng Việt.
-- Văn phong: Sáng tạo, có chiều sâu, phù hợp với thiết lập nhân vật.`;
-
-         userPrompt = `THÔNG TIN NHÂN VẬT:
+      if (currentInput && currentInput.trim().length > 0) {
+          // Enrich Mode: Prompt is handled by buildWorldCreationPrompt entirely
+          userPrompt = buildWorldCreationPrompt(field, contextData, currentInput);
+      } else {
+          // Create Mode: Keep existing context construction logic for better randomness
+          if (category === 'player') {
+             userPrompt = `THÔNG TIN NHÂN VẬT:
 - Tên: ${contextData.name}
 - Giới tính: ${contextData.gender}
 - Tuổi: ${contextData.age}
 - Bối cảnh thế giới (Genre): ${contextData.genre || "Tùy chọn"}
 
 YÊU CẦU: Viết nội dung cho mục: "${field}".`;
-
-      } else if (category === 'world') {
-         systemInstruction = `Bạn là kiến trúc sư thế giới ảo (World Builder).
-Nhiệm vụ: Viết mô tả chi tiết cho [${field}] của thế giới.
-Quy tắc Output:
-- Chỉ trả về nội dung chính. KHÔNG viết lời dẫn.
-- Ngôn ngữ: Tiếng Việt.
-- Văn phong: Hùng vĩ, logic, khơi gợi trí tưởng tượng.`;
-
-         userPrompt = `THÔNG TIN THẾ GIỚI:
+          } else if (category === 'world') {
+             userPrompt = `THÔNG TIN THẾ GIỚI:
 - Thể loại (Genre): ${contextData.genre}
 - Tên thế giới: ${contextData.worldName || "Chưa đặt tên"}
 
 YÊU CẦU: Viết nội dung cho mục: "${field}".`;
-
-      } else if (category === 'entity') {
-         systemInstruction = `Bạn là người sáng tạo nội dung NPC và sự kiện cho Game RPG.
-Nhiệm vụ: Viết [${field}] cho một thực thể trong game.
-Quy tắc Output:
-- Chỉ trả về nội dung chính. KHÔNG viết lời dẫn.
-- Ngôn ngữ: Tiếng Việt.`;
-
-         userPrompt = `THÔNG TIN THỰC THỂ:
+          } else if (category === 'entity') {
+             userPrompt = `THÔNG TIN THỰC THỂ:
 - Tên: ${contextData.name}
 - Loại: ${contextData.type} (NPC/LOCATION/CUSTOM)
 - Thể loại thế giới: ${contextData.genre || "Tùy chọn"}
 
 YÊU CẦU: Viết nội dung cho mục: "${field}".`;
+          }
       }
 
-      // 2. Call AI
+      // 3. Call AI
       const response = await ai.models.generateContent({
         model: modelName,
         contents: userPrompt,
         config: {
           systemInstruction: systemInstruction,
-          temperature: 0.85,
+          temperature: currentInput ? 0.7 : 0.85, // Lower temp for enrichment to stay closer to source
           topK: 40,
           topP: 0.95,
         }
