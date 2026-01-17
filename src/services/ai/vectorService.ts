@@ -1,0 +1,111 @@
+
+import { ai } from "../client";
+import { dbService, VectorData } from "../db/indexedDB";
+import { ChatMessage } from "../../types";
+
+// Task 3.2: Vector Service Implementation
+
+export const vectorService = {
+    /**
+     * Calculates Cosine Similarity between two vectors
+     */
+    cosineSimilarity(vecA: number[], vecB: number[]): number {
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+        for (let i = 0; i < vecA.length; i++) {
+            dotProduct += vecA[i] * vecB[i];
+            normA += vecA[i] * vecA[i];
+            normB += vecB[i] * vecB[i];
+        }
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    },
+
+    /**
+     * Generates embedding for a given text using gemini text-embedding-004
+     */
+    async getEmbedding(text: string): Promise<number[] | null> {
+        try {
+            if (!text || text.trim().length === 0) return null;
+            
+            const result = await ai.models.embedContent({
+                model: 'text-embedding-004',
+                content: {
+                    parts: [{ text }]
+                }
+            });
+            return result.embedding?.values || null;
+        } catch (error) {
+            console.error("Error generating embedding:", error);
+            return null;
+        }
+    },
+
+    /**
+     * Saves a message (user or model) to Vector DB
+     */
+    async saveVector(id: string, text: string, role: 'user' | 'model'): Promise<void> {
+        // Avoid re-saving if exists
+        const exists = await dbService.hasVector(id);
+        if (exists) return;
+
+        const embedding = await this.getEmbedding(text);
+        if (embedding) {
+            const vectorData: VectorData = {
+                id,
+                text,
+                embedding,
+                timestamp: Date.now(),
+                role
+            };
+            await dbService.saveVector(vectorData);
+            console.log(`[VectorService] Saved vector for message: ${id.substring(0, 8)}...`);
+        }
+    },
+
+    /**
+     * Searches for semantically similar text from the vector database
+     */
+    async searchSimilarVectors(queryText: string, limit: number = 10): Promise<VectorData[]> {
+        const queryEmbedding = await this.getEmbedding(queryText);
+        if (!queryEmbedding) return [];
+
+        const allVectors = await dbService.getAllVectors();
+        
+        // Calculate similarity for each vector
+        const scoredVectors = allVectors.map(vec => ({
+            ...vec,
+            score: this.cosineSimilarity(queryEmbedding, vec.embedding)
+        }));
+
+        // Sort by score descending and take top 'limit'
+        // Filter out very low similarity to avoid noise (e.g. < 0.3)
+        return scoredVectors
+            .filter(v => v.score > 0.35) 
+            .sort((a, b) => b.score - a.score)
+            .slice(0, limit);
+    },
+
+    /**
+     * Task 3.4: Process old history and vectorize missing messages
+     */
+    async vectorizeAllHistory(history: ChatMessage[]): Promise<void> {
+        console.log("[VectorService] Starting batch vectorization...");
+        let processedCount = 0;
+        
+        for (let i = 0; i < history.length; i++) {
+            const msg = history[i];
+            // Use timestamp as ID if no explicit ID exists in ChatMessage (assuming timestamp is unique enough for this context)
+            const msgId = `msg-${msg.timestamp}-${msg.role}`;
+            
+            const exists = await dbService.hasVector(msgId);
+            if (!exists && msg.text) {
+                // Rate limit protection: simple delay
+                await new Promise(r => setTimeout(r, 200)); 
+                await this.saveVector(msgId, msg.text, msg.role);
+                processedCount++;
+            }
+        }
+        console.log(`[VectorService] Batch vectorization complete. Processed ${processedCount} messages.`);
+    }
+};

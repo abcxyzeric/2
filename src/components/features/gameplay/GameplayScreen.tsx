@@ -12,6 +12,7 @@ import TawaPresetManager from './components/TawaPresetManager';
 import { LsrParser, LsrTableDefinition } from '../../../services/lsr/LsrParser';
 import { LSR_REGEX } from '../../../data/lsr_config';
 import NotificationModal, { NotificationState, NotificationType } from '../../ui/NotificationModal';
+import { vectorService } from '../../../services/ai/vectorService';
 
 // Constants for Pagination
 const MESSAGES_PER_PAGE = 5;
@@ -23,9 +24,10 @@ const MotionButton = motion.button as any;
 interface TawaMessageRendererProps {
     text: string;
     onUpdate: (newText: string) => void;
+    isStreaming?: boolean; // Task 2: Prop for streaming state
 }
 
-const TawaMessageRenderer: React.FC<TawaMessageRendererProps> = ({ text, onUpdate }) => {
+const TawaMessageRenderer: React.FC<TawaMessageRendererProps> = ({ text, onUpdate, isStreaming }) => {
     const [showThinking, setShowThinking] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editedText, setEditedText] = useState(text);
@@ -34,6 +36,21 @@ const TawaMessageRenderer: React.FC<TawaMessageRendererProps> = ({ text, onUpdat
     useEffect(() => {
         setEditedText(text);
     }, [text]);
+
+    // Task 2: Simple Render for Streaming to prevent Markdown breakages
+    if (isStreaming) {
+        return (
+            <div className="w-full flex flex-col gap-2 animate-pulse">
+                 <div className="text-xs font-bold text-mystic-accent uppercase mb-1 flex items-center gap-1">
+                    <Loader2 size={12} className="animate-spin"/> Streaming...
+                 </div>
+                 {/* Render plain text with whitespace preservation during stream */}
+                 <div className="whitespace-pre-wrap font-mono text-base text-slate-300 leading-relaxed opacity-90">
+                    {text || "..."}
+                 </div>
+            </div>
+        );
+    }
 
     // Extract Thinking content
     const thinkingContent = extractTagContent(text, 'thinking');
@@ -177,6 +194,7 @@ const RulesManager: React.FC<{
     rules: string[];
     onUpdate: (newRules: string[]) => void;
 }> = ({ rules, onUpdate }) => {
+    // ... (No changes to RulesManager)
     const [isOpen, setIsOpen] = useState(false);
     const [newRule, setNewRule] = useState("");
     const [editIdx, setEditIdx] = useState<number | null>(null);
@@ -354,6 +372,13 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
           if (worldDataWithState.savedState) {
               setHistory(worldDataWithState.savedState.history);
               setTurnCount(worldDataWithState.savedState.turnCount);
+              
+              // Task 3.4: Background vectorization of existing history
+              // Run efficiently in background without blocking UI
+              setTimeout(() => {
+                  vectorService.vectorizeAllHistory(worldDataWithState.savedState!.history);
+              }, 1000);
+
           } else if (history.length === 0 && s) {
             // Initial Start: Generate opening
             handleSendInitial(s);
@@ -894,6 +919,10 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
                         const swipes = msg.swipes || [msg.text];
                         const swipeIndex = msg.swipeIndex || 0;
                         const displayText = swipes[swipeIndex] || "";
+                        
+                        // Check if this message is currently being streamed
+                        // It is streaming if we are loading AND it is the very last message in the entire history
+                        const isStreamingMsg = isLoading && (globalIndex === history.length - 1);
 
                         return (
                             <MotionDiv 
@@ -910,10 +939,11 @@ const GameplayScreen: React.FC<NavigationProps> = ({ onNavigate, activeWorld }) 
                                     <TawaMessageRenderer 
                                         text={displayText}
                                         onUpdate={(newText) => handleMessageUpdate(globalIndex, newText)}
+                                        isStreaming={isStreamingMsg} // Pass prop
                                     />
 
                                     {/* Swipe Controls for AI Messages */}
-                                    {isModel && (
+                                    {isModel && !isStreamingMsg && (
                                         <div className="flex items-center gap-2 mt-1 select-none w-full border-t border-slate-800/50 pt-2">
                                             <div className="flex items-center bg-slate-800/50 rounded-lg p-0.5 border border-slate-700/50">
                                                 <button 

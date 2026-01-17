@@ -45,12 +45,13 @@ const getPerspectivePrompt = (perspective: string, playerName: string) => {
 /**
  * Hàm Prompt Gameplay Chính (REFACTORED V2 - TAWA ULTIMATE)
  * Uses Data-Driven Injection & Granular Modules
+ * Task 3.3: Updated to accept relevantMemories string
  */
 export const buildGameplaySystemPrompt = (
   worldSettings: any,
   playerProfile: any,
   entities: any[],
-  relevantMemories: string,
+  relevantMemories: string, // RAG Context
   turnCount: number,
   presetConfig: TawaPresetConfig,
   gameConfig: GameConfig,
@@ -157,8 +158,7 @@ export const buildGameplaySystemPrompt = (
       // CASE A: Module has injectKey -> Inject or Append to Variable
       if (mod.injectKey) {
           const key = mod.injectKey;
-          // Only append if active and content exists, otherwise empty string override might be desired logic depending on Tawa spec
-          // But usually we append. If module is inactive, content is '', so appending '' does nothing.
+          // Only append if active and content exists
           if (content) {
               if (variables[key]) {
                   variables[key] += "\n" + content;
@@ -169,10 +169,9 @@ export const buildGameplaySystemPrompt = (
       } 
       // CASE B: Standalone Module -> Append to Segments
       else if (mod.isActive) {
-          // Fallback logic: If a module is active but lacks position/injectKey, treat it as 'final' or 'bottom'
           const position = mod.position || 'bottom'; 
           const priority = POSITION_PRIORITY[position] || POSITION_PRIORITY['bottom'];
-          const order = mod.order || 999; // Default to end if no order
+          const order = mod.order || 999; 
 
           segments.push({
               priority: priority,
@@ -201,12 +200,17 @@ User (người dùng) đang nhập vai nhân vật chính tên là "${playerProf
     });
   }
 
-  // 1. RAG Memories
-  if (relevantMemories) {
+  // 1. RAG Memories (Task 3.3)
+  // Inject relevant memories from Vector Search
+  if (relevantMemories && relevantMemories.trim().length > 0) {
       segments.push({ 
           priority: POSITION_PRIORITY['persona'], 
           order: 99, 
-          content: `[Ký ức liên quan]\n${relevantMemories}`, 
+          content: `
+<RELEVANT_PAST_CONTEXT>
+(Hệ thống đã truy xuất được các ký ức liên quan từ quá khứ, hãy sử dụng chúng để duy trì tính nhất quán)
+${relevantMemories}
+</RELEVANT_PAST_CONTEXT>`, 
           source: 'Memories' 
       });
   }

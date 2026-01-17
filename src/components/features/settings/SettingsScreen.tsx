@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Cpu, Sliders, BrainCircuit, AlertTriangle } from 'lucide-react';
@@ -168,11 +169,13 @@ const SettingsScreen: React.FC<NavigationProps> = ({ onNavigate }) => {
                         />
                     </div>
 
-                    {/* Context Size */}
+                    {/* Context Size - Task 1: Fix Max Value */}
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-slate-300">Context Size (Tokens)</label>
                         <input 
                             type="number" 
+                            min="1000"
+                            max="2000000"
                             value={settings.contextSize}
                             onChange={(e) => handleChange('contextSize', parseInt(e.target.value))}
                             className="w-full bg-slate-800 border border-slate-600 rounded p-2 text-sm text-slate-200 focus:border-mystic-accent outline-none font-mono"

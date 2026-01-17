@@ -3,6 +3,14 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { AppSettings, SaveFile, SystemLog } from '../../types';
 import { DEFAULT_SAFETY_SETTINGS } from '../../constants/promptTemplates';
 
+export interface VectorData {
+  id: string;
+  text: string;
+  embedding: number[];
+  timestamp: number;
+  role: 'user' | 'model'; // Added to distinguish who said what
+}
+
 interface RPGDatabase extends DBSchema {
   saves: {
     key: string;
@@ -17,17 +25,21 @@ interface RPGDatabase extends DBSchema {
     value: SystemLog;
     autoIncrement: true;
   };
+  vectors: {
+    key: string;
+    value: VectorData;
+  };
 }
 
 const DB_NAME = 'aetheria-rpg-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Upgraded version
 
 class DatabaseService {
   private dbPromise: Promise<IDBPDatabase<RPGDatabase>>;
 
   constructor() {
     this.dbPromise = openDB<RPGDatabase>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion, newVersion, transaction) {
         if (!db.objectStoreNames.contains('saves')) {
           db.createObjectStore('saves', { keyPath: 'id' });
         }
@@ -36,6 +48,12 @@ class DatabaseService {
         }
         if (!db.objectStoreNames.contains('logs')) {
           db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true });
+        }
+        // Task 3.1: Add vectors store
+        if (!db.objectStoreNames.contains('vectors')) {
+          const vectorStore = db.createObjectStore('vectors', { keyPath: 'id' });
+          // Optional: Add index for timestamp if needed for cleanup later
+          vectorStore.createIndex('timestamp', 'timestamp');
         }
       },
     });
@@ -71,14 +89,14 @@ class DatabaseService {
         fontSize: 'medium',
         safetySettings: DEFAULT_SAFETY_SETTINGS,
         aiModel: 'gemini-3-pro-preview',
-        // New Defaults
-        contextSize: 2000000,
-        maxOutputTokens: 65000, // Safe default, logic handles thinking budget separately
+        // Task 1: Ensure defaults support high context
+        contextSize: 2000000, 
+        maxOutputTokens: 65000, 
         temperature: 1.15,
         topK: 500,
         topP: 0.95,
         thinkingBudgetLevel: 'high',
-        streamResponse: false // Default streaming to false
+        streamResponse: false 
     };
 
     if (!settings) {
@@ -113,6 +131,29 @@ class DatabaseService {
   async deleteSave(id: string): Promise<void> {
     const db = await this.dbPromise;
     await db.delete('saves', id);
+  }
+
+  // --- Vector Operations ---
+
+  async saveVector(vectorData: VectorData): Promise<void> {
+    const db = await this.dbPromise;
+    await db.put('vectors', vectorData);
+  }
+
+  async getVector(id: string): Promise<VectorData | undefined> {
+    const db = await this.dbPromise;
+    return db.get('vectors', id);
+  }
+
+  async getAllVectors(): Promise<VectorData[]> {
+    const db = await this.dbPromise;
+    return db.getAll('vectors');
+  }
+
+  async hasVector(id: string): Promise<boolean> {
+     const db = await this.dbPromise;
+     const key = await db.getKey('vectors', id);
+     return !!key;
   }
 }
 

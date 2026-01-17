@@ -4,6 +4,7 @@ import { buildGameplaySystemPrompt } from "./prompts";
 import { DEFAULT_PRESET_CONFIG } from "../../../constants/tawa_modules";
 import { ai } from "../client";
 import { GenerateContentResponse } from "@google/genai";
+import { vectorService } from "../vectorService";
 
 // Map thinking levels to token counts
 const THINKING_BUDGET_MAP = {
@@ -13,6 +14,9 @@ const THINKING_BUDGET_MAP = {
     'high': 32768
 };
 
+// Task 3.3 Step 2: History Slicing Constant
+const MAX_HISTORY_CONTEXT = 200;
+
 export const gameplayAiService = {
   // --- GAMEPLAY STORY GENERATION (With Tawa Protocol) ---
 
@@ -21,12 +25,22 @@ export const gameplayAiService = {
     history: ChatMessage[], 
     worldData: WorldData, 
     settings: AppSettings,
-    presetConfig?: TawaPresetConfig // Updated to accept config object
+    presetConfig?: TawaPresetConfig 
   ): Promise<string> {
     try {
-        // 1. Construct System Instruction using Tawa Builder
         const currentTurn = Math.floor(history.length / 2) + 1;
         
+        // Task 3.3 Step 1: Vector Search (RAG)
+        // Find relevant memories from the distant past
+        const similarVectors = await vectorService.searchSimilarVectors(input, 5);
+        const relevantMemories = similarVectors
+            .map(v => `[${new Date(v.timestamp).toLocaleString()}] ${v.role === 'user' ? 'User' : 'AI'}: ${v.text}`)
+            .join('\n\n');
+
+        // Task 3.3 Step 2: Slice History
+        // Keep only the last 200 messages for immediate context to save tokens
+        const slicedHistory = history.slice(-MAX_HISTORY_CONTEXT);
+
         // Use provided config or fallback to default
         const activeConfig = presetConfig || DEFAULT_PRESET_CONFIG;
 
@@ -34,11 +48,11 @@ export const gameplayAiService = {
           worldData.world,
           worldData.player,
           worldData.entities,
-          "", // Placeholder for RAG memories
+          relevantMemories, // Task 3.3 Step 3: Inject Memories
           currentTurn,
           activeConfig, 
           worldData.config,
-          input // PASS USER INPUT HERE FOR LOREBOOK SCANNING
+          input 
         );
 
         // 2. Prepare Config (High Creativity for Tawa)
@@ -51,17 +65,12 @@ export const gameplayAiService = {
             maxOutputTokens: settings.maxOutputTokens,
         };
 
-        // Only add thinking budget if model supports it and budget > 0
         if (thinkingBudget > 0 && settings.aiModel.includes('pro')) {
              generationConfig.thinkingConfig = { thinkingBudget };
         }
 
-        // 3. Prepare Contents (History + Current Input)
-        const contents = history.map(msg => {
-            // Nếu là tin nhắn của user trong lịch sử, bọc nó trong thẻ <user_input>
-            // Lưu ý: Nếu lịch sử đã được lưu với thẻ này rồi thì không cần bọc lại, 
-            // nhưng để an toàn và nhất quán, ta giả định text trong history là raw text.
-            // Tuy nhiên, nếu text trong history đã có thẻ rồi thì tránh bọc 2 lần.
+        // 3. Prepare Contents (Using sliced history)
+        const contents = slicedHistory.map(msg => {
             let text = msg.text;
             if (msg.role === 'user' && !text.includes('<user_input>')) {
                 text = `<user_input>${text}</user_input>`;
@@ -72,14 +81,12 @@ export const gameplayAiService = {
             };
         });
 
-        // Add current user input wrapped in <user_input>
         contents.push({
             role: 'user',
             parts: [{ text: `<user_input>${input}</user_input>` }]
         });
 
         // 4. Assistant Prefill Logic
-        // Find the 'sys_prefill_trigger' module content to use as prefill
         const prefillModule = activeConfig.modules.find(m => m.id === 'sys_prefill_trigger');
         const prefillContent = (prefillModule && prefillModule.isActive) ? prefillModule.content : '';
 
@@ -102,10 +109,19 @@ export const gameplayAiService = {
 
         let fullResponse = response.text || "";
 
-        // Combine prefill with generated text for the final output
         if (prefillContent) {
             fullResponse = prefillContent + fullResponse;
         }
+
+        // Task 3.3 Step 4: Save Vectors Async (Fire and forget)
+        (async () => {
+             const userMsgId = `msg-${Date.now()}-user`;
+             const aiMsgId = `msg-${Date.now() + 1}-model`;
+             await vectorService.saveVector(userMsgId, input, 'user');
+             if (fullResponse) {
+                 await vectorService.saveVector(aiMsgId, fullResponse, 'model');
+             }
+        })();
 
         return fullResponse || "Hệ thống không phản hồi. Vui lòng thử lại.";
 
@@ -127,11 +143,20 @@ export const gameplayAiService = {
         const currentTurn = Math.floor(history.length / 2) + 1;
         const activeConfig = presetConfig || DEFAULT_PRESET_CONFIG;
 
+        // Task 3.3 Step 1: Vector Search (RAG)
+        const similarVectors = await vectorService.searchSimilarVectors(input, 5);
+        const relevantMemories = similarVectors
+            .map(v => `[${new Date(v.timestamp).toLocaleString()}] ${v.role === 'user' ? 'User' : 'AI'}: ${v.text}`)
+            .join('\n\n');
+
+        // Task 3.3 Step 2: Slice History
+        const slicedHistory = history.slice(-MAX_HISTORY_CONTEXT);
+
         const systemInstruction = buildGameplaySystemPrompt(
           worldData.world,
           worldData.player,
           worldData.entities,
-          "", 
+          relevantMemories, // Inject Memories
           currentTurn,
           activeConfig, 
           worldData.config,
@@ -151,7 +176,7 @@ export const gameplayAiService = {
              generationConfig.thinkingConfig = { thinkingBudget };
         }
 
-        const contents = history.map(msg => {
+        const contents = slicedHistory.map(msg => {
             let text = msg.text;
             if (msg.role === 'user' && !text.includes('<user_input>')) {
                 text = `<user_input>${text}</user_input>`;
@@ -171,13 +196,8 @@ export const gameplayAiService = {
         const prefillModule = activeConfig.modules.find(m => m.id === 'sys_prefill_trigger');
         const prefillContent = (prefillModule && prefillModule.isActive) ? prefillModule.content : '';
 
-        // Yield Prefill content immediately if it exists
         if (prefillContent) {
             yield prefillContent;
-            
-            // Note: If using prefill, we usually send it as a model part to the API to "force" continuation,
-            // or we just prepend it to the UI and let the model generate the rest. 
-            // In Google GenAI SDK, providing 'role: model' as last message acts as prefill/continuation.
             contents.push({
                 role: 'model',
                 parts: [{ text: prefillContent }]
@@ -193,12 +213,25 @@ export const gameplayAiService = {
             }
         });
 
+        let accumulatedFullText = prefillContent;
+
         for await (const chunk of streamResponse) {
              const c = chunk as GenerateContentResponse;
              if (c.text) {
+                 accumulatedFullText += c.text;
                  yield c.text;
              }
         }
+
+        // Task 3.3 Step 4: Save Vectors Async after stream completes
+        (async () => {
+             const userMsgId = `msg-${Date.now()}-user`;
+             const aiMsgId = `msg-${Date.now() + 1}-model`;
+             await vectorService.saveVector(userMsgId, input, 'user');
+             if (accumulatedFullText) {
+                 await vectorService.saveVector(aiMsgId, accumulatedFullText, 'model');
+             }
+        })();
 
     } catch (error) {
         console.error("Generate Story Stream Error:", error);
