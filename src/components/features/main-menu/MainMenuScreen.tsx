@@ -11,7 +11,8 @@ import {
   Clock,
   FileText,
   Trash2,
-  CheckCircle
+  CheckCircle,
+  Download
 } from 'lucide-react';
 import Button from '../../ui/Button';
 import StatusFooter from './StatusFooter';
@@ -84,10 +85,20 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
         const content = e.target?.result as string;
         const parsedData = JSON.parse(content);
         
-        // CASE 1: File Save Gameplay (Có chứa history và turnCount)
-        // Cấu trúc: { id, world: WorldData, history: [], turnCount: 0, ... }
-        if (parsedData.history && parsedData.world && parsedData.world.player) {
-             console.log("Phát hiện file Save Gameplay");
+        // CASE 1: File Save Gameplay (Standard WorldData structure with savedState)
+        // Đây là cấu trúc chuẩn khi tải về từ menu hoặc gameplay
+        if (parsedData.savedState && parsedData.world && parsedData.player) {
+             console.log("Phát hiện file Save Gameplay (Standard)");
+             if (onGameStart) {
+                 onGameStart(parsedData as WorldData);
+             }
+             return;
+        }
+
+        // CASE 2: Legacy/Alternative Structure (Structure flattened)
+        // Cấu trúc cũ hoặc biến thể: { id, world: WorldData, history: [], turnCount: 0, ... }
+        else if (parsedData.history && parsedData.world && parsedData.world.player) {
+             console.log("Phát hiện file Save Gameplay (Legacy/Flattened)");
              const worldData: WorldData = {
                 ...parsedData.world, // Lấy WorldData gốc từ bên trong
                 savedState: {
@@ -96,15 +107,13 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
                 }
             };
             
-            // Vào thẳng Gameplay
             if (onGameStart) {
                 onGameStart(worldData);
             }
         }
-        // CASE 2: File Export từ World Creation (Chỉ là setup)
-        // Cấu trúc: { player, world, config, entities } (Chính là WorldData)
-        else if (parsedData.player && parsedData.world && parsedData.config) {
-             // Sửa đổi theo yêu cầu: Không nhận file Setup tại Menu chính
+        // CASE 3: File Export từ World Creation (Chỉ là setup, không có savedState)
+        // Cấu trúc: { player, world, config, entities }
+        else if (parsedData.player && parsedData.world && parsedData.config && !parsedData.savedState) {
              showNotify("⚠️ Đây là file Thiết lập Thế giới (Setup). Vui lòng vào mục 'Khởi tạo thế giới' -> Nút 'Nhập' (Import) ở góc dưới để sử dụng file này.", 'warning');
              return;
         } 
@@ -133,6 +142,31 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
   const handleDeleteClick = (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
       setDeleteTargetId(id); // Trigger confirmation modal
+  };
+
+  const handleDownloadClick = (e: React.MouseEvent, save: SaveFile) => {
+      e.stopPropagation();
+      try {
+          // Xuất toàn bộ dữ liệu WorldData (bao gồm savedState bên trong)
+          const dataToExport = save.data; 
+          
+          // Tạo tên file an toàn
+          const safeName = save.name.replace(/[^a-z0-9\u00C0-\u024F ]/gi, '_').toLowerCase();
+          const fileName = `mythos_save_${safeName}_${save.id}.json`;
+          
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+          const downloadAnchorNode = document.createElement('a');
+          downloadAnchorNode.setAttribute("href", dataStr);
+          downloadAnchorNode.setAttribute("download", fileName);
+          document.body.appendChild(downloadAnchorNode);
+          downloadAnchorNode.click();
+          downloadAnchorNode.remove();
+
+          setToast({ show: true, message: "Đã tải xuống file save!" });
+      } catch (err) {
+          console.error(err);
+          showNotify("Lỗi khi tạo file tải xuống", 'error');
+      }
   };
 
   const confirmDelete = async () => {
@@ -334,13 +368,22 @@ const MainMenuScreen: React.FC<NavigationProps> = ({ onNavigate, onGameStart, on
                                             </div>
                                         </div>
                                         
-                                        <button 
-                                          onClick={(e) => handleDeleteClick(e, save.id)}
-                                          className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/10 rounded-full transition-colors opacity-0 group-hover:opacity-100"
-                                          title="Xóa save"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                              onClick={(e) => handleDownloadClick(e, save)}
+                                              className="p-2 text-slate-500 hover:text-mystic-accent hover:bg-mystic-accent/10 rounded-full transition-colors"
+                                              title="Tải xuống"
+                                            >
+                                                <Download size={16} />
+                                            </button>
+                                            <button 
+                                              onClick={(e) => handleDeleteClick(e, save.id)}
+                                              className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-900/10 rounded-full transition-colors"
+                                              title="Xóa save"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
                                     </div>
                                   );
                               })
