@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2, Globe, User, Users, Map, RefreshCw, Zap, UserPlus } from 'lucide-react';
+import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2, Globe, User, Users, Map, RefreshCw, Zap, UserPlus, PlayCircle } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
 import { AppView, Persona, INITIAL_PERSONA, AIConfig, WorldInfo, INITIAL_WORLD_INFO, PREDEFINED_GENRES, DataItem } from '../types';
@@ -13,11 +13,12 @@ import {
 interface WorldCreationProps {
   onNavigate: (view: AppView) => void;
   aiConfig: AIConfig;
+  setGameData?: (data: { persona: Persona, worldInfo: WorldInfo }) => void; // New prop to pass data up
 }
 
 type Tab = 'PERSONA' | 'WORLD';
 
-const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) => {
+const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig, setGameData }) => {
   const [activeTab, setActiveTab] = useState<Tab>('PERSONA');
   
   // States
@@ -97,6 +98,23 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
       ...prev,
       [listKey]: prev[listKey].filter((_, i) => i !== index)
     }));
+  };
+
+  // --- Handlers: Start Game ---
+  const handleStartGame = () => {
+    // Basic Validation
+    if (!persona.name || !worldInfo.worldName) {
+        showToast("Vui lòng nhập ít nhất Tên Nhân Vật và Tên Thế Giới để bắt đầu.", "error");
+        return;
+    }
+
+    if (setGameData) {
+        setGameData({ persona, worldInfo });
+    }
+    showToast("Đang chuyển đến màn chơi...", "success");
+    setTimeout(() => {
+        onNavigate(AppView.GAMEPLAY);
+    }, 500);
   };
 
   // --- AI Logic: Unified Generation ---
@@ -268,6 +286,16 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
               </Button>
           </div>
           <div className="font-serif font-bold text-lg text-zinc-100">Thiết lập & Khởi tạo</div>
+          
+          <div className="absolute right-4">
+             <Button 
+                onClick={handleStartGame} 
+                variant="primary" 
+                className="!px-4 !py-2 text-xs gap-2"
+             >
+                <PlayCircle size={16} fill="currentColor" /> Bắt đầu chơi
+             </Button>
+          </div>
         </div>
 
         {/* Row 2: Tabs (Centered below title) */}

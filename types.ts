@@ -102,6 +102,44 @@ export interface UniversePayload {
   worldInfo: WorldInfo;
 }
 
+// --- Gameplay & Preset Types ---
+
+export interface Message {
+  role: 'user' | 'model' | 'system';
+  content: string;
+  timestamp: number;
+}
+
+export interface PromptDefinition {
+  name: string;
+  system_prompt: boolean;
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  identifier: string;
+  injection_position?: number; // 0: Relative, 1: Absolute
+  injection_depth?: number;
+  injection_order?: number;
+  enabled?: boolean;
+}
+
+export interface Preset {
+  name?: string;
+  temperature: number;
+  top_p?: number;
+  top_k?: number;
+  repetition_penalty?: number; // Mapped to frequency_penalty if needed
+  prompts: PromptDefinition[];
+  prompt_order: { identifier: string; enabled: boolean; character_id?: number; order?: any[] }[]; // Simplified for this app
+}
+
+export interface GameSession {
+  messages: Message[];
+  activePreset: Preset | null;
+  persona: Persona;
+  worldInfo: WorldInfo;
+  isProcessing: boolean;
+}
+
 export const PREDEFINED_GENRES = [
   "Huyền Huyễn (Xianxia)", "Kiếm Hiệp (Wuxia)", "Cyberpunk", "Hậu Tận Thế (Post-Apocalyptic)",
   "Kỳ Ảo Phương Tây (Western Fantasy)", "Đô Thị Dị Năng (Urban Fantasy)", 

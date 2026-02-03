@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppView, AppTheme, AIConfig, DEFAULT_AI_CONFIG } from './types';
+import { AppView, AppTheme, AIConfig, DEFAULT_AI_CONFIG, GameSession, INITIAL_PERSONA, INITIAL_WORLD_INFO } from './types';
 import MainMenu from './components/MainMenu';
 import Gameplay from './components/Gameplay';
 import WorldCreation from './components/WorldCreation';
@@ -9,6 +9,27 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.MAIN_MENU);
   const [currentTheme, setCurrentTheme] = useState<AppTheme>(AppTheme.DEFAULT);
   const [aiConfig, setAiConfig] = useState<AIConfig>(DEFAULT_AI_CONFIG);
+  
+  // Game Session State (Lifted)
+  const [gameSession, setGameSession] = useState<GameSession>({
+    messages: [],
+    activePreset: null,
+    persona: INITIAL_PERSONA,
+    worldInfo: INITIAL_WORLD_INFO,
+    isProcessing: false,
+  });
+
+  // Handler to update game data from World Creation
+  const handleSetGameData = (data: { persona: any, worldInfo: any }) => {
+    setGameSession(prev => ({
+        ...prev,
+        persona: data.persona,
+        worldInfo: data.worldInfo,
+        // Optional: Clear messages when starting new world, or keep them?
+        // Let's keep messages empty for a new game.
+        messages: []
+    }));
+  };
 
   // Render the current view based on state
   const renderView = () => {
@@ -16,9 +37,22 @@ const App: React.FC = () => {
       case AppView.MAIN_MENU:
         return <MainMenu onNavigate={setCurrentView} />;
       case AppView.GAMEPLAY:
-        return <Gameplay onNavigate={setCurrentView} />;
+        return (
+          <Gameplay 
+            onNavigate={setCurrentView} 
+            gameSession={gameSession}
+            setGameSession={setGameSession}
+            aiConfig={aiConfig}
+          />
+        );
       case AppView.WORLD_CREATION:
-        return <WorldCreation onNavigate={setCurrentView} aiConfig={aiConfig} />;
+        return (
+          <WorldCreation 
+            onNavigate={setCurrentView} 
+            aiConfig={aiConfig} 
+            setGameData={handleSetGameData}
+          />
+        );
       case AppView.SETTINGS:
         return (
           <Settings 

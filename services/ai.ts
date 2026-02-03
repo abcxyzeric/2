@@ -36,19 +36,25 @@ const getThinkingBudget = (level: ThinkingLevel): number => {
  * --- CORE AI EXECUTION LOGIC (SDK vs PROXY) ---
  */
 
-const callGemini = async (
+export const callGemini = async (
   prompt: string, 
   aiConfig: AIConfig, 
-  responseMimeType: string = "text/plain"
+  responseMimeType: string = "text/plain",
+  configOverrides?: { temperature?: number; topP?: number; topK?: number }
 ): Promise<string> => {
   const thinkingBudget = getThinkingBudget(aiConfig.thinkingLevel);
   const modelName = aiConfig.model || 'gemini-3-pro-preview';
   
+  // Merge AIConfig with Preset Overrides if provided
+  const temperature = configOverrides?.temperature ?? aiConfig.temperature;
+  const topP = configOverrides?.topP ?? aiConfig.topP;
+  const topK = configOverrides?.topK ?? aiConfig.topK;
+
   // Common Generation Config
   const generationConfig = {
-    temperature: aiConfig.temperature,
-    topK: aiConfig.topK,
-    topP: aiConfig.topP,
+    temperature: temperature,
+    topK: topK,
+    topP: topP,
     maxOutputTokens: aiConfig.maxOutputTokens,
     responseMimeType: responseMimeType,
     thinkingConfig: { thinkingBudget: thinkingBudget },
@@ -63,7 +69,10 @@ const callGemini = async (
 
       const payload = {
         contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+        // If the prompt is fully constructed by gameplay-engine, we rely less on systemInstruction here
+        // or we pass the prompt as user content.
+        // For Proxy, we follow standard structure.
+        systemInstruction: { parts: [{ text: "Follow the prompt instructions strictly." }] },
         generationConfig: generationConfig,
         safetySettings: safetySettings
       };
@@ -107,7 +116,7 @@ const callGemini = async (
         config: {
           ...generationConfig,
           safetySettings: safetySettings,
-          systemInstruction: SYSTEM_INSTRUCTION,
+          systemInstruction: "Follow the prompt instructions strictly.",
         },
       });
 
