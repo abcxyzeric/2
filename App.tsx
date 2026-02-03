@@ -47,7 +47,8 @@ const App: React.FC = () => {
       case AppTheme.ROYAL:
         return 'from-violet-950 via-zinc-950 to-zinc-950';
       default:
-        return 'from-zinc-900 via-zinc-950 to-zinc-950';
+        // Updated Default to Slate for a cooler, deeper aesthetic instead of plain Zinc
+        return 'from-slate-900 via-zinc-950 to-black';
     }
   };
 
@@ -55,7 +56,7 @@ const App: React.FC = () => {
     <div className={`min-h-screen w-full bg-zinc-950 text-zinc-200 selection:bg-white/20 selection:text-white`}>
       {/* Dynamic Background Noise/Gradient Overlay */}
       <div 
-        className={`fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${getThemeGradient()} pointer-events-none transition-colors duration-700 ease-in-out`} 
+        className={`fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] ${getThemeGradient()} pointer-events-none transition-colors duration-1000 ease-in-out`} 
       />
       
       {/* Main Content Area */}

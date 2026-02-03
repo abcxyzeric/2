@@ -18,12 +18,12 @@ const Button: React.FC<ButtonProps> = ({
   className = '',
   fullWidth = false
 }) => {
-  const baseStyles = "flex items-center justify-center gap-3 px-6 py-3 rounded-lg transition-all duration-300 font-medium text-sm tracking-wide focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "flex items-center justify-center gap-3 px-6 py-3.5 rounded-xl transition-all duration-300 font-medium text-sm tracking-wide focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-[0.98]";
   
   const variants = {
-    primary: "bg-zinc-100 text-zinc-900 hover:bg-white hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] focus:ring-zinc-100 border border-transparent",
-    secondary: "bg-zinc-900/50 text-zinc-300 border border-zinc-800 hover:bg-zinc-800/80 hover:text-white hover:border-zinc-700 focus:ring-zinc-600 backdrop-blur-sm",
-    ghost: "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/30",
+    primary: "bg-zinc-100 text-zinc-900 hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] border border-transparent shadow-lg shadow-black/20",
+    secondary: "bg-zinc-900/40 text-zinc-300 border border-white/10 hover:bg-zinc-800 hover:text-white hover:border-white/20 backdrop-blur-md shadow-sm hover:shadow-md",
+    ghost: "bg-transparent text-zinc-400 hover:text-zinc-100 hover:bg-white/5",
   };
 
   const widthStyle = fullWidth ? "w-full" : "";
@@ -33,7 +33,7 @@ const Button: React.FC<ButtonProps> = ({
       onClick={onClick} 
       className={`${baseStyles} ${variants[variant]} ${widthStyle} ${className}`}
     >
-      {Icon && <Icon size={18} strokeWidth={2} />}
+      {Icon && <Icon size={18} strokeWidth={2} className="opacity-90" />}
       {children}
     </button>
   );

@@ -20,7 +20,7 @@ const Settings: React.FC<SettingsProps> = ({
 }) => {
   
   const themes = [
-    { id: AppTheme.DEFAULT, name: 'Mặc định (MythOS)', color: 'bg-zinc-800' },
+    { id: AppTheme.DEFAULT, name: 'Mặc định (MythOS)', color: 'bg-slate-800' },
     { id: AppTheme.MIDNIGHT, name: 'Đêm trường', color: 'bg-indigo-900' },
     { id: AppTheme.FOREST, name: 'Rừng thẳm', color: 'bg-emerald-900' },
     { id: AppTheme.CRIMSON, name: 'Huyết nguyệt', color: 'bg-rose-900' },
