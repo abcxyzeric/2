@@ -54,7 +54,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   
   // Default values for new fields
   model: AIModel.GEMINI_3_PRO_PREVIEW,
-  proxyName: '',
+  proxyName: 'None',
   proxyUrl: '',
   proxyPassword: '',
 };
