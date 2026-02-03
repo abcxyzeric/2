@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { ArrowLeft, Sliders, Palette, Shield, Check, Cpu, Server, ChevronDown, ChevronUp, Download, Upload, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
+import ConfigSlider from './ConfigSlider';
 import { AppView, AppTheme, AIConfig, ThinkingLevel, AIModel } from '../types';
 
 interface SettingsProps {
@@ -236,136 +237,55 @@ const Settings: React.FC<SettingsProps> = ({
               </select>
             </div>
 
-            {/* Context Size */}
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <label className="text-sm text-zinc-300">Context Size (Tokens)</label>
-                <span className="text-xs text-zinc-500">Max: 2,000,000</span>
-              </div>
-              <div className="flex gap-4 items-center">
-                <input 
-                  type="range" 
-                  min="1000" 
-                  max="2000000" 
-                  step="1000"
-                  value={aiConfig.contextSize}
-                  onChange={(e) => handleConfigChange('contextSize', Number(e.target.value))}
-                  className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-                <input 
-                  type="number"
-                  value={aiConfig.contextSize}
-                  onChange={(e) => handleConfigChange('contextSize', Number(e.target.value))}
-                  className="w-24 bg-zinc-950 border border-white/10 rounded-md px-2 py-1 text-sm text-right outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
+            <ConfigSlider 
+                label="Context Size (Tokens)"
+                subLabel="Max: 2,000,000"
+                value={aiConfig.contextSize}
+                onChange={(val) => handleConfigChange('contextSize', val)}
+                min={1000}
+                max={2000000}
+                step={1000}
+            />
 
-            {/* Temperature */}
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <label className="text-sm text-zinc-300">Temperature (Sáng tạo)</label>
-                <span className="text-xs text-zinc-500">Max: 2.0</span>
-              </div>
-              <div className="flex gap-4 items-center">
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="2.0" 
-                  step="0.01"
-                  value={aiConfig.temperature}
-                  onChange={(e) => handleConfigChange('temperature', Number(e.target.value))}
-                  className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-                <input 
-                  type="number"
-                  step="0.01"
-                  max="2.0"
-                  value={aiConfig.temperature}
-                  onChange={(e) => handleConfigChange('temperature', Number(e.target.value))}
-                  className="w-24 bg-zinc-950 border border-white/10 rounded-md px-2 py-1 text-sm text-right outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
+            <ConfigSlider 
+                label="Temperature (Sáng tạo)"
+                subLabel="Max: 2.0"
+                value={aiConfig.temperature}
+                onChange={(val) => handleConfigChange('temperature', val)}
+                min={0}
+                max={2.0}
+                step={0.01}
+            />
 
-            {/* Top K */}
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <label className="text-sm text-zinc-300">Top K</label>
-                <span className="text-xs text-zinc-500">Max: 500</span>
-              </div>
-              <div className="flex gap-4 items-center">
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="500" 
-                  step="1"
-                  value={aiConfig.topK}
-                  onChange={(e) => handleConfigChange('topK', Number(e.target.value))}
-                  className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-                <input 
-                  type="number"
-                  max="500"
-                  value={aiConfig.topK}
-                  onChange={(e) => handleConfigChange('topK', Number(e.target.value))}
-                  className="w-24 bg-zinc-950 border border-white/10 rounded-md px-2 py-1 text-sm text-right outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
+            <ConfigSlider 
+                label="Top K"
+                subLabel="Max: 500"
+                value={aiConfig.topK}
+                onChange={(val) => handleConfigChange('topK', val)}
+                min={1}
+                max={500}
+                step={1}
+            />
 
-            {/* Top P */}
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <label className="text-sm text-zinc-300">Top P</label>
-                <span className="text-xs text-zinc-500">Max: 1.0</span>
-              </div>
-              <div className="flex gap-4 items-center">
-                <input 
-                  type="range" 
-                  min="0" 
-                  max="1.0" 
-                  step="0.01"
-                  value={aiConfig.topP}
-                  onChange={(e) => handleConfigChange('topP', Number(e.target.value))}
-                  className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-                <input 
-                  type="number"
-                  step="0.01"
-                  max="1.0"
-                  value={aiConfig.topP}
-                  onChange={(e) => handleConfigChange('topP', Number(e.target.value))}
-                  className="w-24 bg-zinc-950 border border-white/10 rounded-md px-2 py-1 text-sm text-right outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
+            <ConfigSlider 
+                label="Top P"
+                subLabel="Max: 1.0"
+                value={aiConfig.topP}
+                onChange={(val) => handleConfigChange('topP', val)}
+                min={0}
+                max={1.0}
+                step={0.01}
+            />
 
-             {/* Max Output Length */}
-             <div className="space-y-2">
-              <div className="flex justify-between">
-                <label className="text-sm text-zinc-300">Max Response Length</label>
-                <span className="text-xs text-zinc-500">Max: 65,000</span>
-              </div>
-              <div className="flex gap-4 items-center">
-                <input 
-                  type="range" 
-                  min="100" 
-                  max="65000" 
-                  step="100"
-                  value={aiConfig.maxOutputTokens}
-                  onChange={(e) => handleConfigChange('maxOutputTokens', Number(e.target.value))}
-                  className="flex-1 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-                <input 
-                  type="number"
-                  max="65000"
-                  value={aiConfig.maxOutputTokens}
-                  onChange={(e) => handleConfigChange('maxOutputTokens', Number(e.target.value))}
-                  className="w-24 bg-zinc-950 border border-white/10 rounded-md px-2 py-1 text-sm text-right outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
+            <ConfigSlider 
+                label="Max Response Length"
+                subLabel="Max: 65,000"
+                value={aiConfig.maxOutputTokens}
+                onChange={(val) => handleConfigChange('maxOutputTokens', val)}
+                min={100}
+                max={65000}
+                step={100}
+            />
 
           </div>
         </section>

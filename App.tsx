@@ -43,6 +43,7 @@ const App: React.FC = () => {
             gameSession={gameSession}
             setGameSession={setGameSession}
             aiConfig={aiConfig}
+            onSetAiConfig={setAiConfig}
           />
         );
       case AppView.WORLD_CREATION:

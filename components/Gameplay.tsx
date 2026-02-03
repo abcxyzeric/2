@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, SendHorizontal, Upload, FileText, Bot, User, Settings2, Trash2, RefreshCcw, GripVertical, ChevronDown, ChevronUp, CheckCircle2, CircleOff, Layers } from 'lucide-react';
+import { ArrowLeft, SendHorizontal, Upload, FileText, Bot, User, Settings2, Trash2, RefreshCcw, GripVertical, ChevronDown, ChevronUp, CheckCircle2, CircleOff, Layers, Sliders } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
+import ConfigSlider from './ConfigSlider';
 import { AppView, GameSession, Message, AIConfig, Preset } from '../types';
 import { callGemini } from '../services/ai';
 import { constructDynamicPrompt } from '../services/gameplay-engine';
@@ -11,6 +12,7 @@ interface GameplayProps {
   gameSession: GameSession;
   setGameSession: React.Dispatch<React.SetStateAction<GameSession>>;
   aiConfig: AIConfig;
+  onSetAiConfig?: (config: AIConfig) => void; // Optional to allow local updates if passed
 }
 
 // Helper to map technical identifiers to readable labels
@@ -38,11 +40,13 @@ const Gameplay: React.FC<GameplayProps> = ({
   onNavigate, 
   gameSession, 
   setGameSession, 
-  aiConfig 
+  aiConfig,
+  onSetAiConfig // Assuming this is passed from App.tsx
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'CONFIG' | 'PRESET'>('CONFIG');
   const [expandedPrompts, setExpandedPrompts] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   
@@ -78,15 +82,14 @@ const Gameplay: React.FC<GameplayProps> = ({
       // 1. Construct the prompt using the engine
       const prompt = constructDynamicPrompt(updatedSession, userMessage.content);
       
-      // 2. Determine generation settings from preset
-      const presetSettings = gameSession.activePreset ? {
-        temperature: gameSession.activePreset.temperature,
-        topP: gameSession.activePreset.top_p,
-        topK: gameSession.activePreset.top_k,
-      } : undefined;
+      // 2. Use Global AI Config (Source of Truth)
+      // We pass undefined for presetSettings so ai.ts uses aiConfig
+      // But if we want to respect preset ONLY if user didn't override, it's tricky.
+      // Current Logic: Gameplay Settings (aiConfig) >> Preset Settings.
+      // So we just rely on aiConfig passed to callGemini.
 
       // 3. Call AI
-      const aiResponseText = await callGemini(prompt, aiConfig, 'text/plain', presetSettings);
+      const aiResponseText = await callGemini(prompt, aiConfig, 'text/plain');
 
       // 4. Add AI response to session
       const aiMessage: Message = {
@@ -120,7 +123,8 @@ const Gameplay: React.FC<GameplayProps> = ({
         if (json.prompts && json.prompt_order) {
           setGameSession(prev => ({ ...prev, activePreset: json }));
           setToast({ message: `Đã nạp Preset: ${json.name || "Custom"}`, type: "success" });
-          setIsDrawerOpen(false);
+          // Don't close drawer, let user inspect
+          setActiveTab('PRESET');
         } else {
           setToast({ message: "Cấu trúc file Preset không hợp lệ.", type: "error" });
         }
@@ -146,6 +150,12 @@ const Gameplay: React.FC<GameplayProps> = ({
     }));
   };
 
+  const handleConfigChange = (key: keyof AIConfig, value: number) => {
+      if (onSetAiConfig) {
+          onSetAiConfig({ ...aiConfig, [key]: value });
+      }
+  };
+
   // Helper to get order list safely
   const getPromptOrderList = () => {
     if (!gameSession.activePreset) return [];
@@ -161,6 +171,9 @@ const Gameplay: React.FC<GameplayProps> = ({
   };
 
   const promptOrderList = getPromptOrderList();
+  
+  // Get all prompts (not just ordered ones) for Deep Inspector
+  const allPrompts = gameSession.activePreset?.prompts || [];
 
   return (
     <div className="flex flex-col h-screen w-full animate-fade-in bg-zinc-950 relative overflow-hidden">
@@ -285,136 +298,189 @@ const Gameplay: React.FC<GameplayProps> = ({
       {isDrawerOpen && (
         <div className="absolute inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsDrawerOpen(false)} />
-          <div className="w-[400px] h-full bg-zinc-900 border-l border-white/10 relative z-10 flex flex-col shadow-2xl animate-fade-in">
+          <div className="w-[420px] h-full bg-zinc-900 border-l border-white/10 relative z-10 flex flex-col shadow-2xl animate-fade-in">
             
             {/* Drawer Header */}
             <div className="p-4 border-b border-white/5 flex items-center justify-between bg-zinc-950/50">
               <h3 className="font-semibold text-zinc-200 flex items-center gap-2">
-                <Settings2 size={18} /> Cấu hình Màn chơi
+                <Settings2 size={18} /> Cấu hình & Preset
               </h3>
               <button onClick={() => setIsDrawerOpen(false)} className="text-zinc-500 hover:text-zinc-300 p-1 rounded hover:bg-white/5">
                 <ArrowLeft size={18} />
               </button>
             </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-white/5 bg-zinc-900/50">
+               <button 
+                 onClick={() => setActiveTab('CONFIG')}
+                 className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'CONFIG' ? 'text-indigo-400 border-b-2 border-indigo-500 bg-white/5' : 'text-zinc-500 hover:text-zinc-300'}`}
+               >
+                 Cấu hình AI
+               </button>
+               <button 
+                 onClick={() => setActiveTab('PRESET')}
+                 className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'PRESET' ? 'text-indigo-400 border-b-2 border-indigo-500 bg-white/5' : 'text-zinc-500 hover:text-zinc-300'}`}
+               >
+                 Preset Inspector
+               </button>
+            </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
               
-              {/* Active Preset Card */}
-              <div className="bg-zinc-950 rounded-xl border border-white/5 overflow-hidden">
-                <div className="bg-white/5 px-4 py-3 border-b border-white/5 flex justify-between items-center">
-                   <div className="flex items-center gap-2 text-zinc-300 text-sm font-medium">
-                      <FileText size={16} className="text-indigo-400" /> Preset
-                   </div>
-                   <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">Active</span>
-                </div>
-                <div className="p-4 space-y-2">
-                   <div className="text-emerald-400 font-mono text-sm break-all font-semibold">
-                      {gameSession.activePreset ? gameSession.activePreset.name || "Custom Preset" : "Mặc định (Basic)"}
-                   </div>
-                   {gameSession.activePreset && (
-                      <div className="flex gap-4 text-[11px] text-zinc-500">
-                         <span>Prompts: <span className="text-zinc-300">{gameSession.activePreset.prompts.length}</span></span>
-                         <span>Temp: <span className="text-zinc-300">{gameSession.activePreset.temperature}</span></span>
-                      </div>
-                   )}
-                </div>
-              </div>
+              {/* === TAB: AI CONFIG === */}
+              {activeTab === 'CONFIG' && (
+                 <div className="space-y-6 animate-fade-in">
+                    <div className="bg-zinc-950 rounded-xl border border-white/5 p-4 space-y-5">
+                       <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                          <Sliders size={14} /> Tham số Sinh (Generation)
+                       </h4>
+                       
+                       <ConfigSlider 
+                          label="Temperature"
+                          value={aiConfig.temperature}
+                          onChange={(v) => handleConfigChange('temperature', v)}
+                          min={0} max={2.0} step={0.01}
+                       />
+                       <ConfigSlider 
+                          label="Top K"
+                          value={aiConfig.topK}
+                          onChange={(v) => handleConfigChange('topK', v)}
+                          min={1} max={500} step={1}
+                       />
+                       <ConfigSlider 
+                          label="Top P"
+                          value={aiConfig.topP}
+                          onChange={(v) => handleConfigChange('topP', v)}
+                          min={0} max={1.0} step={0.01}
+                       />
+                       <ConfigSlider 
+                          label="Context Size"
+                          value={aiConfig.contextSize}
+                          onChange={(v) => handleConfigChange('contextSize', v)}
+                          min={1000} max={2000000} step={1000}
+                       />
+                       <ConfigSlider 
+                          label="Max Response"
+                          value={aiConfig.maxOutputTokens}
+                          onChange={(v) => handleConfigChange('maxOutputTokens', v)}
+                          min={100} max={65000} step={100}
+                       />
+                    </div>
 
-              {/* Import Section */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pl-1">Nạp Preset Mới</label>
-                <div 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border border-dashed border-zinc-700 bg-zinc-800/20 hover:bg-zinc-800/40 rounded-xl p-4 flex items-center justify-center gap-3 cursor-pointer transition-all group hover:border-zinc-500"
-                >
-                  <div className="p-2 bg-zinc-800 rounded-lg group-hover:bg-zinc-700 transition-colors">
-                     <Upload size={18} className="text-zinc-400 group-hover:text-zinc-200" />
-                  </div>
-                  <div className="text-left">
-                     <div className="text-sm text-zinc-300 group-hover:text-white font-medium">Chọn file JSON</div>
-                     <div className="text-[10px] text-zinc-500">Hỗ trợ định dạng Tawa/SillyTavern</div>
-                  </div>
-                </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleImportPreset} 
-                  accept=".json" 
-                  className="hidden" 
-                />
-              </div>
-
-              {/* Prompt Inspector List */}
-              {gameSession.activePreset && (
-                <div className="space-y-3 pt-2">
-                   <div className="flex items-center gap-2 text-zinc-500 text-xs font-semibold uppercase tracking-wider pl-1 border-t border-white/5 pt-4">
-                      <Layers size={14} /> Cấu trúc Prompt ({promptOrderList.length})
-                   </div>
-                   
-                   <div className="space-y-2">
-                      {promptOrderList.map((item: any, idx: number) => {
-                          const promptDef = gameSession.activePreset?.prompts.find(p => p.identifier === item.identifier);
-                          const isExpanded = expandedPrompts[item.identifier];
-                          const label = promptDef?.name || getPromptLabel(item.identifier);
-                          const content = promptDef?.content || "*(Sử dụng mặc định hệ thống hoặc rỗng)*";
-                          
-                          return (
-                            <div key={idx} className={`rounded-lg border transition-all duration-200 ${isExpanded ? 'bg-zinc-900 border-white/10' : 'bg-zinc-950/30 border-white/5 hover:border-white/10'}`}>
-                                {/* Card Header */}
-                                <div 
-                                  onClick={() => togglePromptExpand(item.identifier)}
-                                  className="flex items-center justify-between p-3 cursor-pointer select-none"
-                                >
-                                   <div className="flex items-center gap-3 overflow-hidden">
-                                      <GripVertical size={14} className="text-zinc-700 flex-shrink-0" />
-                                      <div className="flex flex-col min-w-0">
-                                         <span className={`text-sm font-medium truncate ${item.enabled ? 'text-zinc-300' : 'text-zinc-500 line-through'}`}>
-                                            {label}
-                                         </span>
-                                         <span className="text-[10px] text-zinc-600 font-mono truncate">{item.identifier}</span>
-                                      </div>
-                                   </div>
-                                   <div className="flex items-center gap-2 flex-shrink-0">
-                                      {item.enabled ? (
-                                        <CheckCircle2 size={14} className="text-emerald-500/50" />
-                                      ) : (
-                                        <CircleOff size={14} className="text-zinc-600" />
-                                      )}
-                                      {isExpanded ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
-                                   </div>
-                                </div>
-
-                                {/* Card Body */}
-                                {isExpanded && (
-                                   <div className="px-3 pb-3 animate-fade-in">
-                                      <div className="bg-black/30 rounded-md p-3 border border-white/5">
-                                         <pre className="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto scrollbar-thin">
-                                            {content}
-                                         </pre>
-                                         <div className="mt-2 flex justify-end">
-                                            <span className="text-[9px] text-zinc-600 bg-zinc-900 px-1.5 py-0.5 rounded border border-white/5">
-                                              Role: {promptDef?.role || 'system'}
-                                            </span>
-                                         </div>
-                                      </div>
-                                   </div>
-                                )}
-                            </div>
-                          );
-                      })}
-                   </div>
-                </div>
+                    <div className="pt-4 border-t border-white/5">
+                        <button 
+                        onClick={handleClearHistory}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/5 text-red-400 hover:bg-red-500/15 border border-red-500/10 transition-all text-xs font-semibold uppercase tracking-wide hover:shadow-lg hover:shadow-red-900/10"
+                        >
+                        <Trash2 size={16} /> Xóa lịch sử Chat
+                        </button>
+                    </div>
+                 </div>
               )}
 
-              {/* Danger Zone */}
-              <div className="pt-6 mt-6 border-t border-white/5">
-                <button 
-                  onClick={handleClearHistory}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/5 text-red-400 hover:bg-red-500/15 border border-red-500/10 transition-all text-xs font-semibold uppercase tracking-wide hover:shadow-lg hover:shadow-red-900/10"
-                >
-                  <Trash2 size={16} /> Xóa lịch sử Chat
-                </button>
-              </div>
+              {/* === TAB: PRESET INSPECTOR === */}
+              {activeTab === 'PRESET' && (
+                <div className="space-y-6 animate-fade-in">
+                    
+                    {/* Active Preset Info */}
+                    <div className="bg-zinc-950 rounded-xl border border-white/5 overflow-hidden">
+                        <div className="bg-white/5 px-4 py-3 border-b border-white/5 flex justify-between items-center">
+                            <div className="flex items-center gap-2 text-zinc-300 text-sm font-medium">
+                                <FileText size={16} className="text-indigo-400" /> Active Preset
+                            </div>
+                            <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded border border-white/10 flex items-center gap-1 transition-colors">
+                                <Upload size={10} /> Load New
+                            </button>
+                            <input type="file" ref={fileInputRef} onChange={handleImportPreset} accept=".json" className="hidden" />
+                        </div>
+                        <div className="p-4">
+                            <div className="text-emerald-400 font-mono text-sm break-all font-semibold">
+                                {gameSession.activePreset ? gameSession.activePreset.name || "Custom Preset" : "Mặc định (System)"}
+                            </div>
+                            <div className="text-[10px] text-zinc-600 mt-1">
+                                {allPrompts.length} modules loaded
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section A: Ordered Sequence */}
+                    {gameSession.activePreset && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-zinc-500 text-xs font-semibold uppercase tracking-wider pl-1 border-t border-white/5 pt-4">
+                                <Layers size={14} /> Trình tự kích hoạt (Active Order)
+                            </div>
+                            
+                            <div className="space-y-1">
+                                {promptOrderList.map((item: any, idx: number) => {
+                                    const promptDef = allPrompts.find(p => p.identifier === item.identifier);
+                                    const label = promptDef?.name || getPromptLabel(item.identifier);
+                                    
+                                    return (
+                                        <div key={`order-${idx}`} className="flex items-center justify-between p-2 rounded bg-zinc-950/30 border border-white/5 text-xs">
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                <span className="text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
+                                                <span className={`truncate ${item.enabled ? 'text-zinc-300' : 'text-zinc-600 line-through'}`}>{label}</span>
+                                            </div>
+                                            {item.enabled ? <CheckCircle2 size={12} className="text-emerald-500/50" /> : <CircleOff size={12} className="text-zinc-700" />}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Section B: Deep Inspector (All Modules) */}
+                    {gameSession.activePreset && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-zinc-500 text-xs font-semibold uppercase tracking-wider pl-1 border-t border-white/5 pt-4">
+                                <Bot size={14} /> Thư viện Prompt ({allPrompts.length})
+                            </div>
+                            
+                            <div className="space-y-2">
+                                {allPrompts.map((promptDef, idx) => {
+                                    const isExpanded = expandedPrompts[promptDef.identifier];
+                                    const label = promptDef.name || getPromptLabel(promptDef.identifier);
+                                    
+                                    return (
+                                        <div key={`module-${idx}`} className={`rounded-lg border transition-all duration-200 ${isExpanded ? 'bg-zinc-900 border-white/10' : 'bg-zinc-950/30 border-white/5 hover:border-white/10'}`}>
+                                            {/* Card Header */}
+                                            <div 
+                                                onClick={() => togglePromptExpand(promptDef.identifier)}
+                                                className="flex items-center justify-between p-3 cursor-pointer select-none"
+                                            >
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    <GripVertical size={14} className="text-zinc-700 flex-shrink-0" />
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-sm font-medium text-zinc-300 truncate">{label}</span>
+                                                        <span className="text-[10px] text-zinc-600 font-mono truncate">{promptDef.identifier}</span>
+                                                    </div>
+                                                </div>
+                                                {isExpanded ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
+                                            </div>
+
+                                            {/* Card Body */}
+                                            {isExpanded && (
+                                                <div className="px-3 pb-3 animate-fade-in">
+                                                    <div className="bg-black/30 rounded-md p-3 border border-white/5">
+                                                        <pre className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto scrollbar-thin">
+                                                            {promptDef.content || "*(Nội dung rỗng)*"}
+                                                        </pre>
+                                                        <div className="mt-2 flex justify-between items-center pt-2 border-t border-white/5">
+                                                            <span className="text-[9px] text-zinc-600 font-mono">Role: {promptDef.role}</span>
+                                                            {promptDef.system_prompt && <span className="text-[9px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">System</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+              )}
 
             </div>
           </div>
