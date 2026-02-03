@@ -1,7 +1,8 @@
-import React from 'react';
-import { ArrowLeft, Sliders, Palette, Shield, Check, Cpu } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ArrowLeft, Sliders, Palette, Shield, Check, Cpu, Server, ChevronDown, ChevronUp, Download, Upload } from 'lucide-react';
 import Button from './Button';
-import { AppView, AppTheme, AIConfig, ThinkingLevel } from '../types';
+import Toast from './Toast';
+import { AppView, AppTheme, AIConfig, ThinkingLevel, AIModel } from '../types';
 
 interface SettingsProps {
   onNavigate: (view: AppView) => void;
@@ -18,7 +19,10 @@ const Settings: React.FC<SettingsProps> = ({
   aiConfig,
   onSetAiConfig
 }) => {
-  
+  const [isProxyExpanded, setIsProxyExpanded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
   const themes = [
     { id: AppTheme.DEFAULT, name: 'Mặc định (MythOS)', color: 'bg-slate-800' },
     { id: AppTheme.MIDNIGHT, name: 'Đêm trường', color: 'bg-indigo-900' },
@@ -45,6 +49,12 @@ const Settings: React.FC<SettingsProps> = ({
     { value: ThinkingLevel.MAXIMUM, label: 'Tối đa (Max 32k)' },
   ];
 
+  const aiModels = [
+    { value: AIModel.GEMINI_3_PRO_PREVIEW, label: 'Gemini 3.0 Pro Preview' },
+    { value: AIModel.GEMINI_3_FLASH_PREVIEW, label: 'Gemini 3.0 Flash Preview' },
+    { value: AIModel.GEMINI_2_5_PRO, label: 'Gemini 2.5 Pro (2.0 Pro Exp)' },
+  ];
+
   const handleConfigChange = (key: keyof AIConfig, value: number | string) => {
     onSetAiConfig({
       ...aiConfig,
@@ -52,8 +62,58 @@ const Settings: React.FC<SettingsProps> = ({
     });
   };
 
+  const handleExportConfig = () => {
+    const configStr = JSON.stringify({
+      proxyName: aiConfig.proxyName,
+      proxyUrl: aiConfig.proxyUrl,
+      proxyPassword: aiConfig.proxyPassword
+    }, null, 2);
+    const blob = new Blob([configStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'mythos_proxy_config.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: "Đã xuất cấu hình Proxy!", type: "success" });
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (json.proxyUrl !== undefined) {
+          onSetAiConfig({
+            ...aiConfig,
+            proxyName: json.proxyName || '',
+            proxyUrl: json.proxyUrl || '',
+            proxyPassword: json.proxyPassword || ''
+          });
+          setToast({ message: "Đã nhập cấu hình thành công!", type: "success" });
+        } else {
+          setToast({ message: "File cấu hình không hợp lệ.", type: "error" });
+        }
+      } catch (err) {
+        setToast({ message: "Lỗi đọc file.", type: "error" });
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="flex flex-col h-screen w-full animate-fade-in bg-transparent overflow-y-auto">
+       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+       
        {/* Top Bar */}
       <div className="h-16 border-b border-white/5 flex items-center px-4 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-20">
         <Button 
@@ -108,6 +168,20 @@ const Settings: React.FC<SettingsProps> = ({
 
           <div className="bg-zinc-900/30 rounded-xl border border-white/5 p-6 space-y-6">
             
+            {/* Model Selection */}
+            <div className="space-y-2">
+              <label className="text-sm text-zinc-300 font-medium">Chọn Model</label>
+              <select
+                value={aiConfig.model}
+                onChange={(e) => handleConfigChange('model', e.target.value)}
+                className="w-full bg-zinc-950 border border-white/10 rounded-lg px-4 py-3 text-sm focus:border-zinc-500 outline-none transition-colors text-zinc-200 font-mono"
+              >
+                {aiModels.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Thinking Budget */}
             <div className="space-y-2">
               <label className="text-sm text-zinc-300 font-medium">Ngân sách suy nghĩ (Thinking Budget)</label>
@@ -254,6 +328,80 @@ const Settings: React.FC<SettingsProps> = ({
             </div>
 
           </div>
+        </section>
+
+        {/* Reverse Proxy Section */}
+        <section className="space-y-4">
+           <div 
+             className="flex items-center justify-between text-zinc-400 border-b border-white/5 pb-2 cursor-pointer hover:text-zinc-200 transition-colors"
+             onClick={() => setIsProxyExpanded(!isProxyExpanded)}
+           >
+            <div className="flex items-center gap-2">
+              <Server size={20} />
+              <h2 className="text-sm font-semibold uppercase tracking-wider">Reverse Proxy</h2>
+            </div>
+             {isProxyExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </div>
+
+           {isProxyExpanded && (
+             <div className="bg-zinc-900/30 rounded-xl border border-white/5 p-6 space-y-6 animate-fade-in">
+               
+               {/* Import / Export Buttons */}
+               <div className="flex gap-3 mb-4">
+                 <input 
+                   type="file" 
+                   ref={fileInputRef} 
+                   onChange={handleFileChange} 
+                   accept=".json" 
+                   className="hidden" 
+                 />
+                 <Button onClick={handleImportClick} variant="secondary" icon={Upload} className="flex-1 text-xs py-2">
+                   Import Config
+                 </Button>
+                 <Button onClick={handleExportConfig} variant="secondary" icon={Download} className="flex-1 text-xs py-2">
+                   Export Config
+                 </Button>
+               </div>
+
+               <div className="space-y-2">
+                  <label className="text-sm text-zinc-300 font-medium">Tên Proxy</label>
+                  <input 
+                    type="text" 
+                    value={aiConfig.proxyName}
+                    onChange={(e) => handleConfigChange('proxyName', e.target.value)}
+                    placeholder="Ví dụ: My Custom Proxy"
+                    className="w-full bg-zinc-950 border border-white/10 rounded-lg px-4 py-3 focus:border-zinc-500 outline-none transition-colors text-zinc-200"
+                  />
+               </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm text-zinc-300 font-medium">Proxy Server URL</label>
+                  <input 
+                    type="text" 
+                    value={aiConfig.proxyUrl}
+                    onChange={(e) => handleConfigChange('proxyUrl', e.target.value)}
+                    placeholder="https://my-proxy.com"
+                    className="w-full bg-zinc-950 border border-white/10 rounded-lg px-4 py-3 focus:border-zinc-500 outline-none transition-colors text-zinc-200 font-mono text-sm"
+                  />
+               </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm text-zinc-300 font-medium">Proxy Password (API Key)</label>
+                  <input 
+                    type="password" 
+                    value={aiConfig.proxyPassword}
+                    onChange={(e) => handleConfigChange('proxyPassword', e.target.value)}
+                    placeholder="Nhập khóa API..."
+                    className="w-full bg-zinc-950 border border-white/10 rounded-lg px-4 py-3 focus:border-zinc-500 outline-none transition-colors text-zinc-200 font-mono text-sm"
+                  />
+               </div>
+
+               <p className="text-xs text-zinc-500 italic mt-2">
+                 * Nếu URL và Password được điền, hệ thống sẽ ưu tiên sử dụng Proxy thay vì API Key mặc định của ứng dụng.
+               </p>
+
+             </div>
+           )}
         </section>
 
         {/* Safety Section */}

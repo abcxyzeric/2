@@ -23,6 +23,12 @@ export enum ThinkingLevel {
   MAXIMUM = 'MAXIMUM',
 }
 
+export enum AIModel {
+  GEMINI_3_PRO_PREVIEW = 'gemini-3-pro-preview',
+  GEMINI_3_FLASH_PREVIEW = 'gemini-3-flash-preview',
+  GEMINI_2_5_PRO = 'gemini-2.0-pro-exp-02-05',
+}
+
 export interface AIConfig {
   contextSize: number;
   temperature: number;
@@ -30,6 +36,12 @@ export interface AIConfig {
   topP: number;
   maxOutputTokens: number;
   thinkingLevel: ThinkingLevel;
+  
+  // New Fields
+  model: string; 
+  proxyName: string;
+  proxyUrl: string;
+  proxyPassword: string;
 }
 
 export const DEFAULT_AI_CONFIG: AIConfig = {
@@ -39,6 +51,12 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   topP: 0.95,
   maxOutputTokens: 65000,
   thinkingLevel: ThinkingLevel.MAXIMUM,
+  
+  // Default values for new fields
+  model: AIModel.GEMINI_3_PRO_PREVIEW,
+  proxyName: '',
+  proxyUrl: '',
+  proxyPassword: '',
 };
 
 // New Data Structure for structured items

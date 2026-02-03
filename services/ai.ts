@@ -1,9 +1,15 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { Persona, AIConfig, ThinkingLevel, WorldInfo, PREDEFINED_GENRES, UniversePayload, DataItem } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Removed top-level const ai = new GoogleGenAI(...) to support dynamic config/proxy.
 
-const MODEL_NAME = 'gemini-3-pro-preview';
+const SYSTEM_INSTRUCTION = `Bạn là trợ lý viết sáng tạo cho game nhập vai (RPG). Nhiệm vụ của bạn là giúp người dùng tạo ra hồ sơ nhân vật và thế giới chi tiết.
+QUY TẮC TUYỆT ĐỐI:
+1. Chỉ xuất ra nội dung văn bản thuần túy bằng tiếng Việt.
+2. KHÔNG bao gồm các câu dẫn dắt như "Đây là mô tả...", "Dựa trên ý tưởng của bạn...".
+3. Nếu người dùng đã nhập liệu, hãy MỞ RỘNG và TRAU CHUỐT nó, KHÔNG thay thế hoàn toàn ý tưởng gốc.
+4. Giữ văn phong huyền bí, thanh lịch hoặc phù hợp với bối cảnh.
+5. Chỉ trả về dữ liệu thô (raw data) hoặc JSON khi được yêu cầu.`;
 
 // Cấu hình an toàn theo yêu cầu (OFF)
 const safetySettings = [
@@ -13,14 +19,6 @@ const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE }
 ];
-
-const SYSTEM_INSTRUCTION = `Bạn là trợ lý viết sáng tạo cho game nhập vai (RPG). Nhiệm vụ của bạn là giúp người dùng tạo ra hồ sơ nhân vật và thế giới chi tiết.
-QUY TẮC TUYỆT ĐỐI:
-1. Chỉ xuất ra nội dung văn bản thuần túy bằng tiếng Việt.
-2. KHÔNG bao gồm các câu dẫn dắt như "Đây là mô tả...", "Dựa trên ý tưởng của bạn...".
-3. Nếu người dùng đã nhập liệu, hãy MỞ RỘNG và TRAU CHUỐT nó, KHÔNG thay thế hoàn toàn ý tưởng gốc.
-4. Giữ văn phong huyền bí, thanh lịch hoặc phù hợp với bối cảnh.
-5. Chỉ trả về dữ liệu thô (raw data) hoặc JSON khi được yêu cầu.`;
 
 const getThinkingBudget = (level: ThinkingLevel): number => {
   switch (level) {
@@ -34,20 +32,93 @@ const getThinkingBudget = (level: ThinkingLevel): number => {
   }
 };
 
-const buildGenerationConfig = (aiConfig: AIConfig, mimeType: string = "text/plain") => {
+/**
+ * --- CORE AI EXECUTION LOGIC (SDK vs PROXY) ---
+ */
+
+const callGemini = async (
+  prompt: string, 
+  aiConfig: AIConfig, 
+  responseMimeType: string = "text/plain"
+): Promise<string> => {
   const thinkingBudget = getThinkingBudget(aiConfig.thinkingLevel);
+  const modelName = aiConfig.model || 'gemini-3-pro-preview';
   
-  return {
+  // Common Generation Config
+  const generationConfig = {
     temperature: aiConfig.temperature,
     topK: aiConfig.topK,
     topP: aiConfig.topP,
     maxOutputTokens: aiConfig.maxOutputTokens,
-    responseMimeType: mimeType,
-    safetySettings: safetySettings,
-    systemInstruction: SYSTEM_INSTRUCTION,
+    responseMimeType: responseMimeType,
     thinkingConfig: { thinkingBudget: thinkingBudget },
   };
+
+  // --- MODE 2: REVERSE PROXY (Fetch) ---
+  if (aiConfig.proxyUrl && aiConfig.proxyUrl.trim() !== '') {
+    try {
+      // Remove trailing slash if present
+      const baseUrl = aiConfig.proxyUrl.replace(/\/$/, "");
+      const url = `${baseUrl}/v1beta/models/${modelName}:generateContent?key=${aiConfig.proxyPassword}`;
+
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+        generationConfig: generationConfig,
+        safetySettings: safetySettings
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Proxy Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Extract text based on standard Gemini REST API structure
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (text) {
+        return text;
+      } else {
+        throw new Error("Proxy response format invalid or empty");
+      }
+
+    } catch (error) {
+      console.error("Proxy Generation Error:", error);
+      throw error;
+    }
+  } 
+  
+  // --- MODE 1: DEFAULT SDK ---
+  else {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: {
+          ...generationConfig,
+          safetySettings: safetySettings,
+          systemInstruction: SYSTEM_INSTRUCTION,
+        },
+      });
+
+      return response.text || "";
+    } catch (error) {
+       console.error("SDK Generation Error:", error);
+       throw error;
+    }
+  }
 };
+
 
 /**
  * --- UNIFIED UNIVERSE GENERATION ---
@@ -55,7 +126,6 @@ const buildGenerationConfig = (aiConfig: AIConfig, mimeType: string = "text/plai
 
 /**
  * Tạo đồng thời cả Nhân vật và Thế giới từ một ý tưởng chung.
- * Đảm bảo tính nhất quán và cấu trúc dữ liệu DataItem.
  */
 export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig): Promise<UniversePayload | null> => {
   try {
@@ -114,16 +184,10 @@ export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig)
     ${NPC_TEMPLATE}
     `;
 
-    const config = buildGenerationConfig(aiConfig, "application/json");
+    const textResponse = await callGemini(prompt, aiConfig, "application/json");
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: config,
-    });
-
-    if (response.text) {
-      return JSON.parse(response.text) as UniversePayload;
+    if (textResponse) {
+      return JSON.parse(textResponse) as UniversePayload;
     }
     return null;
 
@@ -135,7 +199,6 @@ export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig)
 
 /**
  * Gợi ý nội dung cho một trường nhân vật cụ thể
- * Updated: Hỗ trợ trả về DataItem cho Skills
  */
 export const generatePersonaField = async (
   currentPersona: Persona,
@@ -170,19 +233,13 @@ export const generatePersonaField = async (
     `}
     `;
 
-    const config = buildGenerationConfig(aiConfig, isSkill ? "application/json" : "text/plain");
+    const textResponse = await callGemini(context, aiConfig, isSkill ? "application/json" : "text/plain");
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: context,
-      config: config,
-    });
-
-    if (isSkill && response.text) {
-      return JSON.parse(response.text) as DataItem;
+    if (isSkill && textResponse) {
+      return JSON.parse(textResponse) as DataItem;
     }
 
-    return response.text || "";
+    return textResponse || "";
   } catch (error) {
     console.error(`Error generating field ${targetField}:`, error);
     throw error;
@@ -213,11 +270,6 @@ const NPC_TEMPLATE = `
 `;
 
 /**
- * Tạo toàn bộ thế giới từ ý tưởng (Legacy function support removed for brevity in this specific refactor as Universe handles it, keeping minimal needed)
- * Replaced/Updated by generateUniverseFromIdea for major flows.
- */
-
-/**
  * Gợi ý tên thế giới hoặc bối cảnh
  */
 export const generateWorldField = async (
@@ -240,14 +292,9 @@ export const generateWorldField = async (
       `;
     }
 
-    const config = buildGenerationConfig(aiConfig);
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: config,
-    });
+    const textResponse = await callGemini(prompt, aiConfig, "text/plain");
 
-    return response.text || "";
+    return textResponse || "";
 
   } catch (error) {
     console.error(`Error generating world field ${field}:`, error);
@@ -257,7 +304,6 @@ export const generateWorldField = async (
 
 /**
  * Tạo MỘT item (NPC hoặc Thực thể) duy nhất.
- * Thay thế cho generateWorldList.
  */
 export const generateSingleWorldItem = async (
   currentWorld: WorldInfo,
@@ -292,15 +338,10 @@ export const generateSingleWorldItem = async (
     `}
     `;
 
-    const config = buildGenerationConfig(aiConfig, "application/json");
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: config,
-    });
+    const textResponse = await callGemini(prompt, aiConfig, "application/json");
 
-    if (response.text) {
-      return JSON.parse(response.text) as DataItem;
+    if (textResponse) {
+      return JSON.parse(textResponse) as DataItem;
     }
     return null;
 
@@ -310,7 +351,7 @@ export const generateSingleWorldItem = async (
   }
 };
 
-// Legacy Placeholder to satisfy imports if needed elsewhere (though mostly replaced)
+// Legacy Placeholders
 export const generateFullPersonaFromIdea = async (idea: string, aiConfig: AIConfig): Promise<Persona | null> => {
     return null; 
 };
