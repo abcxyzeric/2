@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, SendHorizontal, Upload, FileText, Bot, User, Settings2, Trash2, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, SendHorizontal, Upload, FileText, Bot, User, Settings2, Trash2, RefreshCcw, GripVertical, ChevronDown, ChevronUp, CheckCircle2, CircleOff, Layers } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
 import { AppView, GameSession, Message, AIConfig, Preset } from '../types';
@@ -13,6 +13,27 @@ interface GameplayProps {
   aiConfig: AIConfig;
 }
 
+// Helper to map technical identifiers to readable labels
+const getPromptLabel = (identifier: string): string => {
+  const map: Record<string, string> = {
+    'main': 'Cốt truyện chính (Main)',
+    'worldInfoBefore': 'Thông tin thế giới (Trước)',
+    'worldInfoAfter': 'Thông tin thế giới (Sau)',
+    'personaDescription': 'Hồ sơ người chơi (Persona)',
+    'charDescription': 'Mô tả nhân vật (Char)',
+    'charPersonality': 'Tính cách nhân vật',
+    'scenario': 'Kịch bản (Scenario)',
+    'enhanceDefinitions': 'Tăng cường định nghĩa',
+    'dialogueExamples': 'Ví dụ đối thoại',
+    'chatHistory': 'Lịch sử trò chuyện',
+    'jailbreak': 'Vượt rào (Jailbreak)',
+    'nsfw': 'NSFW / Adult Content',
+    'authorNote': 'Ghi chú tác giả',
+    'globalNote': 'Ghi chú toàn cục',
+  };
+  return map[identifier] || identifier; // Fallback to identifier if not found
+};
+
 const Gameplay: React.FC<GameplayProps> = ({ 
   onNavigate, 
   gameSession, 
@@ -22,6 +43,7 @@ const Gameplay: React.FC<GameplayProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [expandedPrompts, setExpandedPrompts] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -94,7 +116,7 @@ const Gameplay: React.FC<GameplayProps> = ({
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        // Simple validation
+        // Simple validation check
         if (json.prompts && json.prompt_order) {
           setGameSession(prev => ({ ...prev, activePreset: json }));
           setToast({ message: `Đã nạp Preset: ${json.name || "Custom"}`, type: "success" });
@@ -116,6 +138,29 @@ const Gameplay: React.FC<GameplayProps> = ({
       setToast({ message: "Đã xóa lịch sử.", type: "info" });
     }
   };
+
+  const togglePromptExpand = (id: string) => {
+    setExpandedPrompts(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  // Helper to get order list safely
+  const getPromptOrderList = () => {
+    if (!gameSession.activePreset) return [];
+    const orderRaw = gameSession.activePreset.prompt_order;
+    if (Array.isArray(orderRaw)) {
+        const firstItem = orderRaw[0] as any;
+        if (firstItem && 'order' in firstItem && Array.isArray(firstItem.order)) {
+            return firstItem.order;
+        }
+        return orderRaw;
+    }
+    return [];
+  };
+
+  const promptOrderList = getPromptOrderList();
 
   return (
     <div className="flex flex-col h-screen w-full animate-fade-in bg-zinc-950 relative overflow-hidden">
@@ -240,38 +285,55 @@ const Gameplay: React.FC<GameplayProps> = ({
       {isDrawerOpen && (
         <div className="absolute inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsDrawerOpen(false)} />
-          <div className="w-80 h-full bg-zinc-900 border-l border-white/10 relative z-10 flex flex-col shadow-2xl animate-fade-in">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between">
-              <h3 className="font-semibold text-zinc-200">Cấu hình Màn chơi</h3>
-              <button onClick={() => setIsDrawerOpen(false)} className="text-zinc-500 hover:text-zinc-300"><ArrowLeft size={18} /></button>
+          <div className="w-[400px] h-full bg-zinc-900 border-l border-white/10 relative z-10 flex flex-col shadow-2xl animate-fade-in">
+            
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-white/5 flex items-center justify-between bg-zinc-950/50">
+              <h3 className="font-semibold text-zinc-200 flex items-center gap-2">
+                <Settings2 size={18} /> Cấu hình Màn chơi
+              </h3>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-zinc-500 hover:text-zinc-300 p-1 rounded hover:bg-white/5">
+                <ArrowLeft size={18} />
+              </button>
             </div>
             
-            <div className="p-4 flex-1 overflow-y-auto space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
               
-              {/* Preset Info */}
-              <div className="bg-zinc-950/50 p-4 rounded-xl border border-white/5 space-y-3">
-                <div className="flex items-center gap-2 text-zinc-400 text-sm font-medium">
-                  <FileText size={16} /> Preset Hiện tại
-                </div>
-                <div className="text-emerald-400 font-mono text-xs break-all">
-                  {gameSession.activePreset ? gameSession.activePreset.name || "Unnamed Preset" : "Mặc định (Basic)"}
-                </div>
-                {gameSession.activePreset && (
-                   <div className="text-[10px] text-zinc-600">
-                      Prompts: {gameSession.activePreset.prompts.length} | Temp: {gameSession.activePreset.temperature}
+              {/* Active Preset Card */}
+              <div className="bg-zinc-950 rounded-xl border border-white/5 overflow-hidden">
+                <div className="bg-white/5 px-4 py-3 border-b border-white/5 flex justify-between items-center">
+                   <div className="flex items-center gap-2 text-zinc-300 text-sm font-medium">
+                      <FileText size={16} className="text-indigo-400" /> Preset
                    </div>
-                )}
+                   <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">Active</span>
+                </div>
+                <div className="p-4 space-y-2">
+                   <div className="text-emerald-400 font-mono text-sm break-all font-semibold">
+                      {gameSession.activePreset ? gameSession.activePreset.name || "Custom Preset" : "Mặc định (Basic)"}
+                   </div>
+                   {gameSession.activePreset && (
+                      <div className="flex gap-4 text-[11px] text-zinc-500">
+                         <span>Prompts: <span className="text-zinc-300">{gameSession.activePreset.prompts.length}</span></span>
+                         <span>Temp: <span className="text-zinc-300">{gameSession.activePreset.temperature}</span></span>
+                      </div>
+                   )}
+                </div>
               </div>
 
-              {/* Import Button */}
+              {/* Import Section */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Nạp Preset (JSON)</label>
+                <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider pl-1">Nạp Preset Mới</label>
                 <div 
                   onClick={() => fileInputRef.current?.click()}
-                  className="border border-dashed border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/60 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group"
+                  className="border border-dashed border-zinc-700 bg-zinc-800/20 hover:bg-zinc-800/40 rounded-xl p-4 flex items-center justify-center gap-3 cursor-pointer transition-all group hover:border-zinc-500"
                 >
-                  <Upload size={24} className="text-zinc-500 group-hover:text-indigo-400 transition-colors" />
-                  <span className="text-xs text-zinc-400 group-hover:text-zinc-200">Chọn file Tawa...json</span>
+                  <div className="p-2 bg-zinc-800 rounded-lg group-hover:bg-zinc-700 transition-colors">
+                     <Upload size={18} className="text-zinc-400 group-hover:text-zinc-200" />
+                  </div>
+                  <div className="text-left">
+                     <div className="text-sm text-zinc-300 group-hover:text-white font-medium">Chọn file JSON</div>
+                     <div className="text-[10px] text-zinc-500">Hỗ trợ định dạng Tawa/SillyTavern</div>
+                  </div>
                 </div>
                 <input 
                   type="file" 
@@ -282,11 +344,73 @@ const Gameplay: React.FC<GameplayProps> = ({
                 />
               </div>
 
-              {/* Actions */}
-              <div className="pt-4 border-t border-white/5">
+              {/* Prompt Inspector List */}
+              {gameSession.activePreset && (
+                <div className="space-y-3 pt-2">
+                   <div className="flex items-center gap-2 text-zinc-500 text-xs font-semibold uppercase tracking-wider pl-1 border-t border-white/5 pt-4">
+                      <Layers size={14} /> Cấu trúc Prompt ({promptOrderList.length})
+                   </div>
+                   
+                   <div className="space-y-2">
+                      {promptOrderList.map((item: any, idx: number) => {
+                          const promptDef = gameSession.activePreset?.prompts.find(p => p.identifier === item.identifier);
+                          const isExpanded = expandedPrompts[item.identifier];
+                          const label = promptDef?.name || getPromptLabel(item.identifier);
+                          const content = promptDef?.content || "*(Sử dụng mặc định hệ thống hoặc rỗng)*";
+                          
+                          return (
+                            <div key={idx} className={`rounded-lg border transition-all duration-200 ${isExpanded ? 'bg-zinc-900 border-white/10' : 'bg-zinc-950/30 border-white/5 hover:border-white/10'}`}>
+                                {/* Card Header */}
+                                <div 
+                                  onClick={() => togglePromptExpand(item.identifier)}
+                                  className="flex items-center justify-between p-3 cursor-pointer select-none"
+                                >
+                                   <div className="flex items-center gap-3 overflow-hidden">
+                                      <GripVertical size={14} className="text-zinc-700 flex-shrink-0" />
+                                      <div className="flex flex-col min-w-0">
+                                         <span className={`text-sm font-medium truncate ${item.enabled ? 'text-zinc-300' : 'text-zinc-500 line-through'}`}>
+                                            {label}
+                                         </span>
+                                         <span className="text-[10px] text-zinc-600 font-mono truncate">{item.identifier}</span>
+                                      </div>
+                                   </div>
+                                   <div className="flex items-center gap-2 flex-shrink-0">
+                                      {item.enabled ? (
+                                        <CheckCircle2 size={14} className="text-emerald-500/50" />
+                                      ) : (
+                                        <CircleOff size={14} className="text-zinc-600" />
+                                      )}
+                                      {isExpanded ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
+                                   </div>
+                                </div>
+
+                                {/* Card Body */}
+                                {isExpanded && (
+                                   <div className="px-3 pb-3 animate-fade-in">
+                                      <div className="bg-black/30 rounded-md p-3 border border-white/5">
+                                         <pre className="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto scrollbar-thin">
+                                            {content}
+                                         </pre>
+                                         <div className="mt-2 flex justify-end">
+                                            <span className="text-[9px] text-zinc-600 bg-zinc-900 px-1.5 py-0.5 rounded border border-white/5">
+                                              Role: {promptDef?.role || 'system'}
+                                            </span>
+                                         </div>
+                                      </div>
+                                   </div>
+                                )}
+                            </div>
+                          );
+                      })}
+                   </div>
+                </div>
+              )}
+
+              {/* Danger Zone */}
+              <div className="pt-6 mt-6 border-t border-white/5">
                 <button 
                   onClick={handleClearHistory}
-                  className="w-full flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/5 text-red-400 hover:bg-red-500/15 border border-red-500/10 transition-all text-xs font-semibold uppercase tracking-wide hover:shadow-lg hover:shadow-red-900/10"
                 >
                   <Trash2 size={16} /> Xóa lịch sử Chat
                 </button>
