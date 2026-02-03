@@ -1,0 +1,6 @@
+export enum AppView {
+  MAIN_MENU = 'MAIN_MENU',
+  GAMEPLAY = 'GAMEPLAY',
+  WORLD_CREATION = 'WORLD_CREATION',
+  SETTINGS = 'SETTINGS',
+}
