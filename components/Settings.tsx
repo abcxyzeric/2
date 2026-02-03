@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Sliders, Palette, Shield, Check, Cpu, Server, ChevronDown, ChevronUp, Download, Upload } from 'lucide-react';
+import { ArrowLeft, Sliders, Palette, Shield, Check, Cpu, Server, ChevronDown, ChevronUp, Download, Upload, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
 import { AppView, AppTheme, AIConfig, ThinkingLevel, AIModel } from '../types';
@@ -20,6 +20,7 @@ const Settings: React.FC<SettingsProps> = ({
   onSetAiConfig
 }) => {
   const [isProxyExpanded, setIsProxyExpanded] = useState(false);
+  const [proxyStatus, setProxyStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -60,6 +61,10 @@ const Settings: React.FC<SettingsProps> = ({
       ...aiConfig,
       [key]: value
     });
+    // Reset connection status if Url or Password changes
+    if (key === 'proxyUrl' || key === 'proxyPassword') {
+        setProxyStatus('idle');
+    }
   };
 
   const handleExportConfig = () => {
@@ -97,6 +102,7 @@ const Settings: React.FC<SettingsProps> = ({
             proxyUrl: json.proxyUrl || '',
             proxyPassword: json.proxyPassword || ''
           });
+          setProxyStatus('idle');
           setToast({ message: "Đã nhập cấu hình thành công!", type: "success" });
         } else {
           setToast({ message: "File cấu hình không hợp lệ.", type: "error" });
@@ -108,6 +114,40 @@ const Settings: React.FC<SettingsProps> = ({
     reader.readAsText(file);
     // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCheckProxy = async () => {
+    if (!aiConfig.proxyUrl) {
+        setToast({ message: "Vui lòng nhập URL Proxy trước", type: "error" });
+        return;
+    }
+
+    setProxyStatus('checking');
+    try {
+        // Construct a simple GET request to check models list
+        // This is a standard endpoint for Gemini-compatible APIs
+        const baseUrl = aiConfig.proxyUrl.replace(/\/$/, "");
+        const url = `${baseUrl}/v1beta/models?key=${aiConfig.proxyPassword}`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (response.ok) {
+            setProxyStatus('connected');
+            setToast({ message: "Kết nối Proxy thành công!", type: "success" });
+        } else {
+            setProxyStatus('error');
+            setToast({ message: `Lỗi Proxy: ${response.status} ${response.statusText}`, type: "error" });
+        }
+    } catch (error) {
+        console.error(error);
+        setProxyStatus('error');
+        setToast({ message: "Không thể kết nối đến máy chủ Proxy", type: "error" });
+    }
   };
 
   return (
@@ -399,6 +439,39 @@ const Settings: React.FC<SettingsProps> = ({
                <p className="text-xs text-zinc-500 italic mt-2">
                  * Nếu URL và Password được điền, hệ thống sẽ ưu tiên sử dụng Proxy thay vì API Key mặc định của ứng dụng.
                </p>
+
+                {/* Test Connection Button & Status */}
+                <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                     <Button 
+                        onClick={handleCheckProxy} 
+                        variant="secondary" 
+                        className="gap-2"
+                        disabled={proxyStatus === 'checking'}
+                     >
+                        {proxyStatus === 'checking' ? (
+                            <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                            <Wifi size={16} />
+                        )}
+                        Kiểm tra kết nối
+                     </Button>
+
+                     {/* Status Indicators */}
+                     <div className="flex items-center gap-4">
+                        {proxyStatus === 'connected' && (
+                            <div className="flex items-center gap-2 text-emerald-400 bg-emerald-950/30 px-3 py-1.5 rounded-lg border border-emerald-500/20 animate-fade-in">
+                                <Wifi size={16} strokeWidth={2.5} />
+                                <span className="text-sm font-bold tracking-wide">Connected</span>
+                            </div>
+                        )}
+                        {proxyStatus === 'error' && (
+                            <div className="flex items-center gap-2 text-red-400 bg-red-950/30 px-3 py-1.5 rounded-lg border border-red-500/20 animate-fade-in">
+                                <WifiOff size={16} strokeWidth={2.5} />
+                                <span className="text-sm font-bold tracking-wide">Disconnected</span>
+                            </div>
+                        )}
+                     </div>
+                </div>
 
              </div>
            )}
