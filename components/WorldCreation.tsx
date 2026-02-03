@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2, Globe, User, Users, Map, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2, Globe, User, Users, Map, RefreshCw, Zap } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
 import { AppView, Persona, INITIAL_PERSONA, AIConfig, WorldInfo, INITIAL_WORLD_INFO, PREDEFINED_GENRES } from '../types';
@@ -8,7 +8,8 @@ import {
   generatePersonaField, 
   generateWorldFromIdea, 
   generateWorldField, 
-  generateWorldList 
+  generateWorldList,
+  generateUniverseFromIdea
 } from '../services/ai';
 
 interface WorldCreationProps {
@@ -26,8 +27,7 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
   const [worldInfo, setWorldInfo] = useState<WorldInfo>(INITIAL_WORLD_INFO);
   
   // Inputs
-  const [ideaInput, setIdeaInput] = useState('');
-  const [worldIdeaInput, setWorldIdeaInput] = useState('');
+  const [masterIdeaInput, setMasterIdeaInput] = useState('');
   const [customGenre, setCustomGenre] = useState(''); // For when user selects "Custom"
   
   // Loading States
@@ -95,21 +95,30 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
     }));
   };
 
-  // --- AI Logic: Persona ---
-  const handleGenerateFromIdea = async () => {
-    if (!ideaInput.trim()) {
-      showToast("Vui lòng nhập ý tưởng trước!", "error");
+  // --- AI Logic: Unified Generation ---
+  const handleMasterGeneration = async () => {
+    if (!masterIdeaInput.trim()) {
+      showToast("Vui lòng nhập ý tưởng khởi tạo!", "error");
       return;
     }
-    
+
     setIsGeneratingFull(true);
     try {
-      const result = await generateFullPersonaFromIdea(ideaInput, aiConfig);
+      const result = await generateUniverseFromIdea(masterIdeaInput, aiConfig);
       if (result) {
-        setPersona(result);
-        showToast("Đã tạo hồ sơ nhân vật thành công!", "success");
+        setPersona(result.persona);
+        setWorldInfo(result.worldInfo);
+        
+        // Handle custom genre detection
+        if (result.worldInfo.genre && !PREDEFINED_GENRES.includes(result.worldInfo.genre)) {
+          setCustomGenre(result.worldInfo.genre);
+        } else {
+          setCustomGenre('');
+        }
+
+        showToast("Đã khởi tạo Vũ trụ thành công!", "success");
       } else {
-        showToast("Không thể tạo nhân vật. Vui lòng thử lại.", "error");
+        showToast("Không thể khởi tạo. Vui lòng thử lại.", "error");
       }
     } catch (error) {
       showToast("Lỗi kết nối AI.", "error");
@@ -118,6 +127,8 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
     }
   };
 
+
+  // --- AI Logic: Persona Fields ---
   const handleAiSuggest = async (field: keyof Persona) => {
     if (!persona.name || !persona.age || !persona.gender) {
       showToast("Vui lòng nhập Tên, Tuổi và Giới tính trước khi dùng gợi ý.", "error");
@@ -161,30 +172,7 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
     }
   };
 
-  // --- AI Logic: World ---
-  const handleGenerateWorldFromIdea = async () => {
-    if (!worldIdeaInput.trim()) {
-      showToast("Vui lòng nhập ý tưởng thế giới!", "error");
-      return;
-    }
-
-    setIsGeneratingFull(true);
-    try {
-      const result = await generateWorldFromIdea(worldIdeaInput, aiConfig);
-      if (result) {
-        setWorldInfo(result);
-        if (!PREDEFINED_GENRES.includes(result.genre)) {
-            setCustomGenre(result.genre);
-        }
-        showToast("Đã khởi tạo thế giới thành công!", "success");
-      }
-    } catch (error) {
-      showToast("Lỗi kết nối AI (World Gen).", "error");
-    } finally {
-      setIsGeneratingFull(false);
-    }
-  };
-
+  // --- AI Logic: World Fields ---
   const handleWorldFieldSuggest = async (field: 'worldName' | 'worldContext') => {
     const genreToUse = customGenre || worldInfo.genre;
     if (!genreToUse) {
@@ -208,6 +196,8 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
 
   const handleGenerateWorldList = async (type: 'npcs' | 'entities') => {
     const genreToUse = customGenre || worldInfo.genre;
+    const personaName = persona.name; // Get current persona name
+
      if (!genreToUse) {
       showToast("Vui lòng chọn Thể loại trước.", "error");
       return;
@@ -216,10 +206,15 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
       showToast("Vui lòng tạo Bối cảnh (Context) trước để AI có dữ liệu.", "error");
       return;
     }
+    if (type === 'npcs' && !personaName) {
+        showToast("Vui lòng đặt Tên Nhân Vật trước để AI tạo mối quan hệ.", "error");
+        return;
+    }
 
     setLoadingField(type);
     try {
-      const items = await generateWorldList({ ...worldInfo, genre: genreToUse }, type, aiConfig);
+      // Pass personaName to service
+      const items = await generateWorldList({ ...worldInfo, genre: genreToUse }, type, personaName, aiConfig);
       if (items && items.length > 0) {
         // Append to existing list
         setWorldInfo(prev => ({
@@ -279,40 +274,45 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
       </div>
 
       <div className="max-w-4xl w-full mx-auto p-6 pb-20 space-y-8">
+
+        {/* ================= MASTER INPUT ================= */}
+        {/* Unified generation input at the top */}
+        <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-6 relative overflow-hidden group shadow-lg backdrop-blur-sm ring-1 ring-indigo-500/20">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Zap size={100} />
+          </div>
+          <h3 className="text-indigo-400 font-medium mb-3 flex items-center gap-2">
+            <Sparkles size={18} /> Khởi tạo Vũ trụ từ ý tưởng (Tạo Nhanh)
+          </h3>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={masterIdeaInput}
+              onChange={(e) => setMasterIdeaInput(e.target.value)}
+              placeholder="Ví dụ: Một thế giới tiên hiệp nơi Lạc Yên, một cô gái mang dòng máu Phượng Hoàng tìm cách trả thù..."
+              className="flex-1 bg-zinc-950/50 border border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all placeholder-zinc-600 text-zinc-200"
+            />
+            <Button 
+              onClick={handleMasterGeneration} 
+              variant="secondary"
+              className={`!px-4 bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30 ${isGeneratingFull ? "opacity-70 cursor-wait" : ""}`}
+            >
+              {isGeneratingFull ? (
+                <Sparkles className="animate-spin text-indigo-400" size={20} />
+              ) : (
+                <SendHorizontal size={20} className="text-indigo-400" />
+              )}
+            </Button>
+          </div>
+          <p className="text-[10px] text-zinc-500 mt-2 italic">
+            * AI sẽ tự động tạo Nhân vật, Bối cảnh, và các mối quan hệ dựa trên ý tưởng của bạn.
+          </p>
+        </div>
         
         {/* ================= PERSONA TAB ================= */}
         {activeTab === 'PERSONA' && (
           <div className="space-y-8 animate-fade-in">
-             {/* Generate from Idea Section */}
-            <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-6 relative overflow-hidden group shadow-lg backdrop-blur-sm">
-              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Sparkles size={100} />
-              </div>
-              <h3 className="text-indigo-400 font-medium mb-3 flex items-center gap-2">
-                <Wand2 size={18} /> Tạo Nhân vật từ ý tưởng
-              </h3>
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={ideaInput}
-                  onChange={(e) => setIdeaInput(e.target.value)}
-                  placeholder="Ví dụ: Một ninja không gian tên Luna, lạnh lùng nhưng trung thành..."
-                  className="flex-1 bg-zinc-950/50 border border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all placeholder-zinc-600 text-zinc-200"
-                />
-                <Button 
-                  onClick={handleGenerateFromIdea} 
-                  variant="secondary"
-                  className={`!px-4 ${isGeneratingFull ? "opacity-70 cursor-wait" : ""}`}
-                >
-                  {isGeneratingFull ? (
-                    <Sparkles className="animate-spin" size={20} />
-                  ) : (
-                    <SendHorizontal size={20} className="text-indigo-400" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
+             
             {/* Basic Info Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -424,35 +424,6 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
         {/* ================= WORLD TAB ================= */}
         {activeTab === 'WORLD' && (
            <div className="space-y-8 animate-fade-in">
-              {/* Generate World from Idea */}
-              <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-6 relative overflow-hidden group shadow-lg backdrop-blur-sm">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Globe size={100} />
-                </div>
-                <h3 className="text-indigo-400 font-medium mb-3 flex items-center gap-2">
-                  <Wand2 size={18} /> Khởi tạo Thế giới từ ý tưởng
-                </h3>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={worldIdeaInput}
-                    onChange={(e) => setWorldIdeaInput(e.target.value)}
-                    placeholder="Ví dụ: Một thế giới ngầm cyberpunk nơi hacker nắm quyền kiểm soát..."
-                    className="flex-1 bg-zinc-950/50 border border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all placeholder-zinc-600 text-zinc-200"
-                  />
-                  <Button 
-                    onClick={handleGenerateWorldFromIdea} 
-                    variant="secondary"
-                    className={`!px-4 ${isGeneratingFull ? "opacity-70 cursor-wait" : ""}`}
-                  >
-                    {isGeneratingFull ? (
-                      <Sparkles className="animate-spin" size={20} />
-                    ) : (
-                      <SendHorizontal size={20} className="text-indigo-400" />
-                    )}
-                  </Button>
-                </div>
-              </div>
 
               {/* Genre Selection */}
               <div className="space-y-2">

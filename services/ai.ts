@@ -1,5 +1,5 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { Persona, AIConfig, ThinkingLevel, WorldInfo, PREDEFINED_GENRES } from "../types";
+import { Persona, AIConfig, ThinkingLevel, WorldInfo, PREDEFINED_GENRES, UniversePayload } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -50,7 +50,85 @@ const buildGenerationConfig = (aiConfig: AIConfig, mimeType: string = "text/plai
 };
 
 /**
- * Tạo toàn bộ nhân vật từ một ý tưởng ngắn
+ * --- UNIFIED UNIVERSE GENERATION ---
+ */
+
+/**
+ * Tạo đồng thời cả Nhân vật và Thế giới từ một ý tưởng chung.
+ * Đảm bảo tính nhất quán và sử dụng đúng tên nhân vật trong mối quan hệ NPC.
+ */
+export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig): Promise<UniversePayload | null> => {
+  try {
+    const predefinedGenresStr = PREDEFINED_GENRES.join(", ");
+    
+    const prompt = `
+    Dựa trên ý tưởng cốt lõi: "${idea}"
+    
+    Hãy thực hiện quy trình khởi tạo Vũ trụ theo các bước sau một cách chặt chẽ:
+
+    BƯỚC 1: Xác định Thể loại & Bối cảnh Thế giới.
+    - Chọn thể loại từ [${predefinedGenresStr}] hoặc tạo mới.
+    - Viết 'worldContext' trong thẻ <worldview>...</worldview>.
+
+    BƯỚC 2: Tạo Nhân vật chính (Protagonist/User).
+    - Tạo một nhân vật phù hợp hoàn hảo với bối cảnh ở Bước 1.
+    - QUAN TRỌNG: Hãy đặt một cái TÊN CỤ THỂ cho nhân vật (trường 'name').
+
+    BƯỚC 3: Tạo danh sách 4 NPC.
+    - Các NPC này phải có mối liên hệ với nhân vật chính ở Bước 2.
+    - QUY TẮC NGHIÊM NGẶT: Trong phần mô tả mối quan hệ, KHÔNG ĐƯỢC DÙNG "{{user}}". Bạn PHẢI dùng Tên nhân vật đã tạo ở Bước 2.
+    - Ví dụ: Thay vì "Bạn của {{user}}", hãy viết "Bạn thanh mai trúc mã của Lạc Yên".
+    - Mỗi NPC phải được bọc trong thẻ XML <npc_n>...</npc_n> bên trong chuỗi string.
+
+    BƯỚC 4: Tạo danh sách 4 Thực thể/Thế lực.
+    
+    YÊU CẦU ĐẦU RA (JSON Format):
+    {
+      "worldInfo": {
+         "genre": "...",
+         "worldName": "...",
+         "worldContext": "...",
+         "npcs": ["<npc_1>...</npc_1>", "<npc_2>...</npc_2>", ...],
+         "entities": ["...", "..."]
+      },
+      "persona": {
+        "name": "...",
+        "age": "...",
+        "gender": "...",
+        "personality": "...",
+        "background": "...",
+        "appearance": "...",
+        "skills": ["...", "..."],
+        "goals": "...",
+        "hobbies": "..."
+      }
+    }
+    
+    TEMPLATE NPC (Sử dụng cho mảng worldInfo.npcs):
+    ${NPC_TEMPLATE}
+    `;
+
+    const config = buildGenerationConfig(aiConfig, "application/json");
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: config,
+    });
+
+    if (response.text) {
+      return JSON.parse(response.text) as UniversePayload;
+    }
+    return null;
+
+  } catch (error) {
+    console.error("Error generating universe:", error);
+    throw error;
+  }
+};
+
+/**
+ * Tạo toàn bộ nhân vật từ một ý tưởng ngắn (Legacy function - still used for specific persona-only prompt)
  */
 export const generateFullPersonaFromIdea = async (idea: string, aiConfig: AIConfig): Promise<Persona | null> => {
   try {
@@ -147,7 +225,7 @@ NPC_n - Tên nhân vật:
 `;
 
 /**
- * Tạo toàn bộ thế giới từ ý tưởng
+ * Tạo toàn bộ thế giới từ ý tưởng (Legacy function - maintained for partial compatibility)
  */
 export const generateWorldFromIdea = async (idea: string, aiConfig: AIConfig): Promise<WorldInfo | null> => {
   try {
@@ -232,23 +310,34 @@ export const generateWorldField = async (
 
 /**
  * Gợi ý danh sách (NPC hoặc Thực thể)
+ * UPDATED: Hỗ trợ personaName để thay thế {{user}} và bắt buộc thẻ XML.
  */
 export const generateWorldList = async (
   currentWorld: WorldInfo,
   type: 'npcs' | 'entities',
+  personaName: string,
   aiConfig: AIConfig
 ): Promise<string[]> => {
   try {
     const prompt = `
     Thể loại: ${currentWorld.genre}. Tên thế giới: ${currentWorld.worldName}.
     Bối cảnh: ${currentWorld.worldContext}
+    Tên Nhân Vật Chính (User): "${personaName}"
     
     Hãy tạo ra danh sách 4 ${type === 'npcs' ? 'NPC quan trọng (có chức năng dẫn truyện)' : 'Thực thể / Thế lực / Địa danh quan trọng'}.
     
     YÊU CẦU ĐỊNH DẠNG:
     Trả về kết quả dưới dạng JSON Array các chuỗi string: ["Item 1", "Item 2", "Item 3", "Item 4"].
     
-    ${type === 'npcs' ? `SỬ DỤNG TEMPLATE SAU CHO TỪNG NPC: \n${NPC_TEMPLATE}\nBọc mỗi NPC trong thẻ <npc_n> (ví dụ <npc_1>).` : 'Mỗi thực thể viết một đoạn văn mô tả 4-5 dòng liền mạch.'}
+    ${type === 'npcs' ? `
+    SỬ DỤNG TEMPLATE SAU CHO TỪNG NPC: 
+    ${NPC_TEMPLATE}
+    
+    QUY TẮC QUAN TRỌNG:
+    1. Trong phần "Quan hệ với {{user}}", TUYỆT ĐỐI KHÔNG dùng từ "{{user}}". Hãy thay thế bằng tên nhân vật chính là "${personaName}".
+       Ví dụ: "Kẻ thù không đội trời chung của ${personaName}".
+    2. BẮT BUỘC Bọc nội dung mỗi NPC trong thẻ XML <npc_n> (ví dụ <npc_1>...</npc_1>).
+    ` : 'Mỗi thực thể viết một đoạn văn mô tả 4-5 dòng liền mạch.'}
     `;
 
     const config = buildGenerationConfig(aiConfig, "application/json");

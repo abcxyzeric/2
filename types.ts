@@ -73,6 +73,11 @@ export interface WorldInfo {
   entities: string[];
 }
 
+export interface UniversePayload {
+  persona: Persona;
+  worldInfo: WorldInfo;
+}
+
 export const PREDEFINED_GENRES = [
   "Huyền Huyễn (Xianxia)", "Kiếm Hiệp (Wuxia)", "Cyberpunk", "Hậu Tận Thế (Post-Apocalyptic)",
   "Kỳ Ảo Phương Tây (Western Fantasy)", "Đô Thị Dị Năng (Urban Fantasy)", 
