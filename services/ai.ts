@@ -1,5 +1,5 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { Persona, AIConfig, ThinkingLevel, WorldInfo, PREDEFINED_GENRES, UniversePayload } from "../types";
+import { Persona, AIConfig, ThinkingLevel, WorldInfo, PREDEFINED_GENRES, UniversePayload, DataItem } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -55,7 +55,7 @@ const buildGenerationConfig = (aiConfig: AIConfig, mimeType: string = "text/plai
 
 /**
  * Tạo đồng thời cả Nhân vật và Thế giới từ một ý tưởng chung.
- * Đảm bảo tính nhất quán và sử dụng đúng tên nhân vật trong mối quan hệ NPC.
+ * Đảm bảo tính nhất quán và cấu trúc dữ liệu DataItem.
  */
 export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig): Promise<UniversePayload | null> => {
   try {
@@ -64,32 +64,38 @@ export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig)
     const prompt = `
     Dựa trên ý tưởng cốt lõi: "${idea}"
     
-    Hãy thực hiện quy trình khởi tạo Vũ trụ theo các bước sau một cách chặt chẽ:
+    Hãy thực hiện quy trình khởi tạo Vũ trụ và Nhân vật.
 
     BƯỚC 1: Xác định Thể loại & Bối cảnh Thế giới.
     - Chọn thể loại từ [${predefinedGenresStr}] hoặc tạo mới.
     - Viết 'worldContext' trong thẻ <worldview>...</worldview>.
 
     BƯỚC 2: Tạo Nhân vật chính (Protagonist/User).
-    - Tạo một nhân vật phù hợp hoàn hảo với bối cảnh ở Bước 1.
-    - QUAN TRỌNG: Hãy đặt một cái TÊN CỤ THỂ cho nhân vật (trường 'name').
+    - Tạo 'name' (Tên), 'age', 'gender', 'personality', 'background', 'appearance', 'goals', 'hobbies'.
+    - Kỹ năng (skills): Tạo tối đa 1 hoặc 2 kỹ năng. 
+      + Định dạng: JSON Object { "name": "...", "description": "..." }.
+      + YÊU CẦU MÔ TẢ KỸ NĂNG: Độ dài 20-30 từ. BẮT BUỘC phải chứa nội dung theo format này trong chuỗi description: "tên: [Tên Kỹ Năng]\nmô tả: [Nội dung chi tiết]".
 
     BƯỚC 3: Tạo danh sách 4 NPC.
-    - Các NPC này phải có mối liên hệ với nhân vật chính ở Bước 2.
-    - QUY TẮC NGHIÊM NGẶT: Trong phần mô tả mối quan hệ, KHÔNG ĐƯỢC DÙNG "{{user}}". Bạn PHẢI dùng Tên nhân vật đã tạo ở Bước 2.
-    - Ví dụ: Thay vì "Bạn của {{user}}", hãy viết "Bạn thanh mai trúc mã của Lạc Yên".
-    - Mỗi NPC phải được bọc trong thẻ XML <npc_n>...</npc_n> bên trong chuỗi string.
+    - Định dạng: Mảng các JSON Object { "name": "...", "description": "..." }.
+    - Name: Tên NPC.
+    - Description: Nội dung NPC.
+      + QUY TẮC TAG: Nội dung mô tả PHẢI được bọc trong thẻ XML <npc_n>...</npc_n> (ví dụ <npc_1>, <npc_2>...).
+      + QUY TẮC QUAN HỆ: Trong mô tả quan hệ, thay thế "{{user}}" bằng Tên nhân vật ở Bước 2.
 
     BƯỚC 4: Tạo danh sách 4 Thực thể/Thế lực.
-    
+    - Định dạng: Mảng các JSON Object { "name": "...", "description": "..." }.
+    - Name: Tên thực thể.
+    - Description: Độ dài 20-30 từ.
+
     YÊU CẦU ĐẦU RA (JSON Format):
     {
       "worldInfo": {
          "genre": "...",
          "worldName": "...",
          "worldContext": "...",
-         "npcs": ["<npc_1>...</npc_1>", "<npc_2>...</npc_2>", ...],
-         "entities": ["...", "..."]
+         "npcs": [{ "name": "...", "description": "..." }, ...],
+         "entities": [{ "name": "...", "description": "..." }, ...]
       },
       "persona": {
         "name": "...",
@@ -98,13 +104,13 @@ export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig)
         "personality": "...",
         "background": "...",
         "appearance": "...",
-        "skills": ["...", "..."],
+        "skills": [{ "name": "...", "description": "..." }, ...],
         "goals": "...",
         "hobbies": "..."
       }
     }
     
-    TEMPLATE NPC (Sử dụng cho mảng worldInfo.npcs):
+    TEMPLATE NPC (Sử dụng cho description của NPC):
     ${NPC_TEMPLATE}
     `;
 
@@ -128,42 +134,17 @@ export const generateUniverseFromIdea = async (idea: string, aiConfig: AIConfig)
 };
 
 /**
- * Tạo toàn bộ nhân vật từ một ý tưởng ngắn (Legacy function - still used for specific persona-only prompt)
- */
-export const generateFullPersonaFromIdea = async (idea: string, aiConfig: AIConfig): Promise<Persona | null> => {
-  try {
-    const prompt = `Hãy tạo một hồ sơ nhân vật đầy đủ dựa trên ý tưởng sau: "${idea}".
-    Trả về kết quả dưới dạng JSON (không dùng Markdown code block) với các trường sau:
-    name, age, gender, personality, background, appearance, skills (mảng chuỗi), goals, hobbies.`;
-
-    const config = buildGenerationConfig(aiConfig, "application/json");
-
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: config,
-    });
-
-    if (response.text) {
-      return JSON.parse(response.text) as Persona;
-    }
-    return null;
-  } catch (error) {
-    console.error("Error generating persona from idea:", error);
-    throw error;
-  }
-};
-
-/**
  * Gợi ý nội dung cho một trường nhân vật cụ thể
+ * Updated: Hỗ trợ trả về DataItem cho Skills
  */
 export const generatePersonaField = async (
   currentPersona: Persona,
   targetField: keyof Persona,
   currentValue: string,
   aiConfig: AIConfig
-): Promise<string> => {
+): Promise<string | DataItem> => {
   try {
+    const isSkill = targetField === 'skills';
     const context = `
     THÔNG TIN NHÂN VẬT HIỆN TẠI:
     - Tên: ${currentPersona.name}
@@ -174,21 +155,32 @@ export const generatePersonaField = async (
     
     YÊU CẦU:
     Hãy viết nội dung cho trường: "${targetField}".
-    Giá trị hiện tại của người dùng (nếu có): "${currentValue}".
+    Giá trị hiện tại (nếu có): "${currentValue}".
     
+    ${isSkill ? `
+    ĐỊNH DẠNG ĐẶC BIỆT CHO KỸ NĂNG:
+    Trả về một JSON Object duy nhất: { "name": "Tên Kỹ Năng", "description": "Mô tả chi tiết" }.
+    QUY TẮC MÔ TẢ:
+    - Độ dài: 20-30 từ.
+    - Nội dung description phải bao gồm format: "tên: [Tên Kỹ Năng]\nmô tả: [Nội dung]"
+    ` : `
     HƯỚNG DẪN:
-    - Nếu giá trị hiện tại trống: Hãy sáng tạo nội dung mới phù hợp với Tên, Tuổi, Giới tính đã cung cấp.
-    - Nếu giá trị hiện tại có nội dung: Hãy viết lại đoạn đó cho hay hơn, chi tiết hơn, văn phong cuốn hút hơn, nhưng giữ nguyên ý chính.
-    - Đối với trường 'skills': Chỉ gợi ý 1 kỹ năng đặc biệt hoặc mô tả ngắn gọn về khả năng.
+    - Viết lại đoạn văn cho hay hơn, chi tiết hơn, văn phong cuốn hút hơn.
+    - Chỉ trả về chuỗi văn bản (String).
+    `}
     `;
 
-    const config = buildGenerationConfig(aiConfig);
+    const config = buildGenerationConfig(aiConfig, isSkill ? "application/json" : "text/plain");
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: context,
       config: config,
     });
+
+    if (isSkill && response.text) {
+      return JSON.parse(response.text) as DataItem;
+    }
 
     return response.text || "";
   } catch (error) {
@@ -202,7 +194,7 @@ export const generatePersonaField = async (
  */
 
 const NPC_TEMPLATE = `
-NPC_n - Tên nhân vật:
+<npc_n>
   Thông tin cơ bản:
     Họ và tên: [Tên]
     Tuổi: [Tuổi]
@@ -210,64 +202,20 @@ NPC_n - Tên nhân vật:
     Thân phận: [Nghề nghiệp/Vai trò]
       
   Đặc điểm ngoại hình:
-    Ấn tượng tổng thể: [Tóm tắt 1 câu]
-    Đặc điểm chính: [1-2 điểm nổi bật]
-    Phong cách ăn mặc: [Trang phục]
+    [Tóm tắt 1 câu]
       
   Tính cách cốt lõi:
-    Đặc điểm cốt lõi: [2-3 từ khóa]
-    Mô thức hành vi: [Hành động điển hình]
+    [2-3 từ khóa]
 
   Định vị quan hệ:
     Quan hệ với {{user}}: [Mối quan hệ cụ thể]
-    Thái độ: [Thái độ với user]
-    Cách tương tác: [Cách tương tác]
+</npc_n>
 `;
 
 /**
- * Tạo toàn bộ thế giới từ ý tưởng (Legacy function - maintained for partial compatibility)
+ * Tạo toàn bộ thế giới từ ý tưởng (Legacy function support removed for brevity in this specific refactor as Universe handles it, keeping minimal needed)
+ * Replaced/Updated by generateUniverseFromIdea for major flows.
  */
-export const generateWorldFromIdea = async (idea: string, aiConfig: AIConfig): Promise<WorldInfo | null> => {
-  try {
-    const predefinedGenresStr = PREDEFINED_GENRES.join(", ");
-    
-    const prompt = `
-    Dựa trên ý tưởng thế giới: "${idea}"
-    
-    Hãy khởi tạo một thế giới hoàn chỉnh.
-    Nếu ý tưởng chứa từ khóa thuộc các thể loại sau: [${predefinedGenresStr}], hãy chọn thể loại đó. Nếu không, hãy tự chọn thể loại phù hợp nhất hoặc tạo mới (Custom).
-    
-    YÊU CẦU ĐẦU RA (JSON format, không Markdown):
-    {
-      "genre": "Tên thể loại",
-      "worldName": "Tên thế giới (ấn tượng, Hán Việt nếu là tiên hiệp/kiếm hiệp)",
-      "worldContext": "Mô tả bối cảnh thế giới được bọc trong thẻ <worldview>...</worldview>. Phải bao gồm: Thời đại/Bối cảnh (5-8 dòng liền mạch), Các điểm đặc biệt về hệ thống sức mạnh/văn hóa. KHÔNG gạch đầu dòng.",
-      "npcs": ["Nội dung NPC 1 theo template", "Nội dung NPC 2 theo template", "Nội dung NPC 3 theo template", "Nội dung NPC 4 theo template"],
-      "entities": ["Mô tả thực thể/thế lực 1 (4-5 dòng)", "Mô tả thực thể/thế lực 2 (4-5 dòng)", "Mô tả thực thể/thế lực 3 (4-5 dòng)", "Mô tả thực thể/thế lực 4 (4-5 dòng)"]
-    }
-
-    TEMPLATE NPC BẮT BUỘC (Sử dụng cho mảng npcs):
-    ${NPC_TEMPLATE}
-    `;
-
-    const config = buildGenerationConfig(aiConfig, "application/json");
-
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: config,
-    });
-
-    if (response.text) {
-      return JSON.parse(response.text) as WorldInfo;
-    }
-    return null;
-
-  } catch (error) {
-    console.error("Error generating world from idea:", error);
-    throw error;
-  }
-};
 
 /**
  * Gợi ý tên thế giới hoặc bối cảnh
@@ -287,9 +235,8 @@ export const generateWorldField = async (
       Hãy viết một đoạn mô tả bối cảnh thế giới (World Context).
       YÊU CẦU:
       - Nội dung PHẢI được bọc trong thẻ <worldview>...</worldview>.
-      - Bao gồm: Thời đại/Bối cảnh lịch sử và Các điểm đặc biệt (Hệ thống sức mạnh, văn hóa, công nghệ...).
-      - Độ dài: 5-8 dòng viết liền mạch (paragraph), KHÔNG gạch đầu dòng.
-      - Văn phong: ${currentWorld.genre === 'Tiên Hiệp' ? 'Cổ trang, huyền bí' : 'Phù hợp thể loại'}.
+      - Bao gồm: Thời đại/Bối cảnh lịch sử và Các điểm đặc biệt.
+      - Độ dài: 5-8 dòng viết liền mạch.
       `;
     }
 
@@ -309,35 +256,40 @@ export const generateWorldField = async (
 };
 
 /**
- * Gợi ý danh sách (NPC hoặc Thực thể)
- * UPDATED: Hỗ trợ personaName để thay thế {{user}} và bắt buộc thẻ XML.
+ * Tạo MỘT item (NPC hoặc Thực thể) duy nhất.
+ * Thay thế cho generateWorldList.
  */
-export const generateWorldList = async (
+export const generateSingleWorldItem = async (
   currentWorld: WorldInfo,
   type: 'npcs' | 'entities',
   personaName: string,
+  nextIndex: number, // Index để gắn tag npc_n
   aiConfig: AIConfig
-): Promise<string[]> => {
+): Promise<DataItem | null> => {
   try {
     const prompt = `
     Thể loại: ${currentWorld.genre}. Tên thế giới: ${currentWorld.worldName}.
     Bối cảnh: ${currentWorld.worldContext}
     Tên Nhân Vật Chính (User): "${personaName}"
     
-    Hãy tạo ra danh sách 4 ${type === 'npcs' ? 'NPC quan trọng (có chức năng dẫn truyện)' : 'Thực thể / Thế lực / Địa danh quan trọng'}.
+    HÃY TẠO DUY NHẤT 1 ${type === 'npcs' ? 'NPC' : 'Thực thể/Địa danh'} MỚI.
     
     YÊU CẦU ĐỊNH DẠNG:
-    Trả về kết quả dưới dạng JSON Array các chuỗi string: ["Item 1", "Item 2", "Item 3", "Item 4"].
-    
+    Trả về JSON Object: { "name": "...", "description": "..." }
+
     ${type === 'npcs' ? `
-    SỬ DỤNG TEMPLATE SAU CHO TỪNG NPC: 
-    ${NPC_TEMPLATE}
+    TEMPLATE DESCRIPTION CHO NPC:
+    Bắt buộc bọc nội dung trong thẻ <npc_${nextIndex}>...</npc_${nextIndex}>.
+    ${NPC_TEMPLATE.replace('<npc_n>', `<npc_${nextIndex}>`).replace('</npc_n>', `</npc_${nextIndex}>`)}
     
-    QUY TẮC QUAN TRỌNG:
-    1. Trong phần "Quan hệ với {{user}}", TUYỆT ĐỐI KHÔNG dùng từ "{{user}}". Hãy thay thế bằng tên nhân vật chính là "${personaName}".
-       Ví dụ: "Kẻ thù không đội trời chung của ${personaName}".
-    2. BẮT BUỘC Bọc nội dung mỗi NPC trong thẻ XML <npc_n> (ví dụ <npc_1>...</npc_1>).
-    ` : 'Mỗi thực thể viết một đoạn văn mô tả 4-5 dòng liền mạch.'}
+    QUY TẮC:
+    1. Quan hệ: Thay {{user}} bằng "${personaName}".
+    2. Name: Tên riêng của NPC.
+    ` : `
+    QUY TẮC THỰC THỂ:
+    1. Name: Tên thực thể/địa danh.
+    2. Description: Độ dài khoảng 20-30 từ.
+    `}
     `;
 
     const config = buildGenerationConfig(aiConfig, "application/json");
@@ -348,12 +300,23 @@ export const generateWorldList = async (
     });
 
     if (response.text) {
-      return JSON.parse(response.text) as string[];
+      return JSON.parse(response.text) as DataItem;
     }
-    return [];
+    return null;
 
   } catch (error) {
-    console.error(`Error generating world list ${type}:`, error);
+    console.error(`Error generating single item ${type}:`, error);
     throw error;
   }
+};
+
+// Legacy Placeholder to satisfy imports if needed elsewhere (though mostly replaced)
+export const generateFullPersonaFromIdea = async (idea: string, aiConfig: AIConfig): Promise<Persona | null> => {
+    return null; 
+};
+export const generateWorldFromIdea = async (idea: string, aiConfig: AIConfig): Promise<WorldInfo | null> => {
+    return null;
+};
+export const generateWorldList = async (currentWorld: WorldInfo, type: 'npcs' | 'entities', personaName: string, aiConfig: AIConfig): Promise<string[]> => {
+    return [];
 };

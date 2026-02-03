@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2, Globe, User, Users, Map, RefreshCw, Zap } from 'lucide-react';
+import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2, Globe, User, Users, Map, RefreshCw, Zap, UserPlus } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
-import { AppView, Persona, INITIAL_PERSONA, AIConfig, WorldInfo, INITIAL_WORLD_INFO, PREDEFINED_GENRES } from '../types';
+import { AppView, Persona, INITIAL_PERSONA, AIConfig, WorldInfo, INITIAL_WORLD_INFO, PREDEFINED_GENRES, DataItem } from '../types';
 import { 
-  generateFullPersonaFromIdea, 
   generatePersonaField, 
-  generateWorldFromIdea, 
   generateWorldField, 
-  generateWorldList,
-  generateUniverseFromIdea
+  generateUniverseFromIdea,
+  generateSingleWorldItem
 } from '../services/ai';
 
 interface WorldCreationProps {
@@ -47,12 +45,15 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
   };
 
   const handleAddSkill = () => {
-    setPersona(prev => ({ ...prev, skills: [...prev.skills, ''] }));
+    setPersona(prev => ({ 
+      ...prev, 
+      skills: [...prev.skills, { name: '', description: '' }] 
+    }));
   };
 
-  const handleEditSkill = (index: number, value: string) => {
+  const handleEditSkill = (index: number, field: keyof DataItem, value: string) => {
     const updatedSkills = [...persona.skills];
-    updatedSkills[index] = value;
+    updatedSkills[index] = { ...updatedSkills[index], [field]: value };
     setPersona(prev => ({ ...prev, skills: updatedSkills }));
   };
 
@@ -79,12 +80,15 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
   };
 
   const handleAddWorldListItem = (listKey: 'npcs' | 'entities') => {
-    setWorldInfo(prev => ({ ...prev, [listKey]: [...prev[listKey], ''] }));
+    setWorldInfo(prev => ({ 
+      ...prev, 
+      [listKey]: [...prev[listKey], { name: '', description: '' }] 
+    }));
   };
 
-  const handleEditWorldListItem = (listKey: 'npcs' | 'entities', index: number, value: string) => {
+  const handleEditWorldListItem = (listKey: 'npcs' | 'entities', index: number, field: keyof DataItem, value: string) => {
     const updatedList = [...worldInfo[listKey]];
-    updatedList[index] = value;
+    updatedList[index] = { ...updatedList[index], [field]: value };
     setWorldInfo(prev => ({ ...prev, [listKey]: updatedList }));
   };
 
@@ -127,7 +131,6 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
     }
   };
 
-
   // --- AI Logic: Persona Fields ---
   const handleAiSuggest = async (field: keyof Persona) => {
     if (!persona.name || !persona.age || !persona.gender) {
@@ -139,7 +142,7 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
     try {
       const currentValue = typeof persona[field] === 'string' ? persona[field] as string : '';
       const result = await generatePersonaField(persona, field, currentValue, aiConfig);
-      if (result) {
+      if (typeof result === 'string') {
         handlePersonaChange(field, result);
         showToast(`Đã cập nhật ${field}`, "success");
       }
@@ -156,13 +159,17 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
       return;
     }
     
-    const skillToImprove = persona.skills[index];
+    const skillToImprove = persona.skills[index].description; // Use description as context
     const fieldId = `skill-${index}`;
     setLoadingField(fieldId);
     try {
+      // Call service which now returns DataItem object for skills
       const result = await generatePersonaField(persona, 'skills', skillToImprove, aiConfig);
-      if (result) {
-        handleEditSkill(index, result);
+      if (typeof result !== 'string' && result !== null) {
+        // Update both name and description
+        const updatedSkills = [...persona.skills];
+        updatedSkills[index] = result;
+        setPersona(prev => ({ ...prev, skills: updatedSkills }));
         showToast("Đã cập nhật kỹ năng", "success");
       }
     } catch (error) {
@@ -194,9 +201,10 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
     }
   };
 
-  const handleGenerateWorldList = async (type: 'npcs' | 'entities') => {
+  // Updated to generate SINGLE item
+  const handleGenerateSingleItem = async (type: 'npcs' | 'entities') => {
     const genreToUse = customGenre || worldInfo.genre;
-    const personaName = persona.name; // Get current persona name
+    const personaName = persona.name; 
 
      if (!genreToUse) {
       showToast("Vui lòng chọn Thể loại trước.", "error");
@@ -213,15 +221,24 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
 
     setLoadingField(type);
     try {
-      // Pass personaName to service
-      const items = await generateWorldList({ ...worldInfo, genre: genreToUse }, type, personaName, aiConfig);
-      if (items && items.length > 0) {
-        // Append to existing list
+      // Calculate next index for NPC tagging
+      const nextIndex = worldInfo[type].length + 1;
+
+      const item = await generateSingleWorldItem(
+        { ...worldInfo, genre: genreToUse }, 
+        type, 
+        personaName, 
+        nextIndex,
+        aiConfig
+      );
+
+      if (item) {
+        // Append single item to list
         setWorldInfo(prev => ({
             ...prev,
-            [type]: [...prev[type], ...items]
+            [type]: [...prev[type], item]
         }));
-        showToast(`Đã thêm 4 ${type === 'npcs' ? 'NPC' : 'Thực thể'} mới.`, "success");
+        showToast(`Đã thêm 1 ${type === 'npcs' ? 'NPC' : 'Thực thể'} mới.`, "success");
       }
     } catch (error) {
        showToast("Lỗi AI.", "error");
@@ -377,24 +394,40 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
               </div>
             </div>
 
-             {/* Skills */}
+             {/* Skills with Name/Description */}
              <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Kỹ năng & Khả năng</label>
                 <button onClick={handleAddSkill} className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 text-sm font-medium"><Plus size={16} /> Thêm kỹ năng</button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 {persona.skills.map((skill, idx) => (
-                  <div key={idx} className="relative group animate-fade-in">
-                    <textarea value={skill} onChange={(e) => handleEditSkill(idx, e.target.value)} placeholder="Mô tả kỹ năng..." className="w-full bg-zinc-900/60 border border-white/10 rounded-lg pl-4 pr-10 py-3 text-sm focus:border-zinc-500 outline-none transition-colors resize-y min-h-[80px] text-zinc-200" />
-                    <div className="absolute top-2 right-2 flex flex-col gap-1">
-                      <button onClick={() => handleRemoveSkill(idx)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
-                      <button onClick={() => handleAiSkillSuggest(idx)} disabled={loadingField === `skill-${idx}`} className="p-1.5 text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors"><Sparkles size={14} className={loadingField === `skill-${idx}` ? "animate-spin" : ""} /></button>
+                  <div key={idx} className="relative group animate-fade-in bg-zinc-900/40 p-3 rounded-xl border border-white/5 space-y-2">
+                    {/* Header: Title Input + Actions */}
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="text" 
+                            value={skill.name} 
+                            onChange={(e) => handleEditSkill(idx, 'name', e.target.value)} 
+                            placeholder="Tên kỹ năng..." 
+                            className="flex-1 bg-zinc-950/50 border border-white/10 rounded-md px-3 py-1.5 text-sm font-medium focus:border-zinc-500 outline-none text-zinc-200 placeholder-zinc-600"
+                        />
+                         <div className="flex gap-1">
+                            <button onClick={() => handleAiSkillSuggest(idx)} disabled={loadingField === `skill-${idx}`} className="p-1.5 text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors"><Sparkles size={14} className={loadingField === `skill-${idx}` ? "animate-spin" : ""} /></button>
+                            <button onClick={() => handleRemoveSkill(idx)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={14} /></button>
+                        </div>
                     </div>
+                    {/* Body: Description */}
+                    <textarea 
+                        value={skill.description} 
+                        onChange={(e) => handleEditSkill(idx, 'description', e.target.value)} 
+                        placeholder="Mô tả chi tiết kỹ năng (hiệu ứng, cách dùng)..." 
+                        className="w-full bg-zinc-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-zinc-500 outline-none transition-colors resize-y min-h-[60px] text-zinc-300" 
+                    />
                   </div>
                 ))}
                 {persona.skills.length === 0 && (
-                  <div onClick={handleAddSkill} className="col-span-1 md:col-span-2 border-2 border-dashed border-zinc-800 rounded-lg p-8 flex flex-col items-center justify-center text-zinc-600 hover:text-zinc-400 hover:border-zinc-700 cursor-pointer transition-all">
+                  <div onClick={handleAddSkill} className="border-2 border-dashed border-zinc-800 rounded-lg p-6 flex flex-col items-center justify-center text-zinc-600 hover:text-zinc-400 hover:border-zinc-700 cursor-pointer transition-all">
                     <Plus size={24} className="mb-2" /><span className="text-sm">Nhấn để thêm kỹ năng đầu tiên</span>
                   </div>
                 )}
@@ -494,27 +527,37 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
                         <Users size={14} /> Danh sách NPC
                     </label>
                     <div className="flex gap-2">
-                        <button onClick={() => handleGenerateWorldList('npcs')} disabled={loadingField === 'npcs'} className="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1">
-                             <RefreshCw size={12} className={loadingField === 'npcs' ? "animate-spin" : ""} /> AI Gợi ý 4 NPC
+                         {/* Single Item Generator Button */}
+                        <button onClick={() => handleGenerateSingleItem('npcs')} disabled={loadingField === 'npcs'} className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 transition-colors border border-indigo-500/20">
+                             {loadingField === 'npcs' ? <RefreshCw size={16} className="animate-spin" /> : <UserPlus size={16} />}
                         </button>
-                        <div className="w-px h-4 bg-zinc-800"></div>
-                        <button onClick={() => handleAddWorldListItem('npcs')} className="text-zinc-400 hover:text-zinc-200 text-xs font-medium flex items-center gap-1">
-                             <Plus size={12} /> Thêm NPC
+                        <div className="w-px h-8 bg-zinc-800 mx-1"></div>
+                        <button onClick={() => handleAddWorldListItem('npcs')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors">
+                             <Plus size={16} />
                         </button>
                     </div>
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {worldInfo.npcs.map((npc, idx) => (
-                         <div key={idx} className="relative group animate-fade-in">
+                         <div key={idx} className="relative group animate-fade-in bg-zinc-900/40 p-3 rounded-xl border border-white/5 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="text" 
+                                    value={npc.name} 
+                                    onChange={(e) => handleEditWorldListItem('npcs', idx, 'name', e.target.value)} 
+                                    placeholder="Tên NPC..." 
+                                    className="flex-1 bg-zinc-950/50 border border-white/10 rounded-md px-3 py-1.5 text-sm font-medium focus:border-zinc-500 outline-none text-zinc-200"
+                                />
+                                <button onClick={() => handleRemoveWorldListItem('npcs', idx)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
                             <textarea
-                                value={npc}
-                                onChange={(e) => handleEditWorldListItem('npcs', idx, e.target.value)}
+                                value={npc.description}
+                                onChange={(e) => handleEditWorldListItem('npcs', idx, 'description', e.target.value)}
                                 placeholder="<npc>...</npc>"
-                                className="w-full bg-zinc-900/60 border border-white/10 rounded-lg pl-4 pr-10 py-3 text-sm focus:border-zinc-500 outline-none transition-colors resize-y min-h-[150px] text-zinc-200 font-mono"
+                                className="w-full bg-zinc-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-zinc-500 outline-none transition-colors resize-y min-h-[120px] text-zinc-300 font-mono"
                             />
-                            <button onClick={() => handleRemoveWorldListItem('npcs', idx)} className="absolute top-2 right-2 p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
-                                <Trash2 size={14} />
-                            </button>
                          </div>
                     ))}
                     {worldInfo.npcs.length === 0 && (
@@ -532,27 +575,37 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) =
                         <Map size={14} /> Các Thực thể / Thế lực
                     </label>
                     <div className="flex gap-2">
-                        <button onClick={() => handleGenerateWorldList('entities')} disabled={loadingField === 'entities'} className="text-indigo-400 hover:text-indigo-300 text-xs font-medium flex items-center gap-1">
-                             <RefreshCw size={12} className={loadingField === 'entities' ? "animate-spin" : ""} /> AI Gợi ý 4 Thực thể
+                        {/* Single Item Generator Button */}
+                         <button onClick={() => handleGenerateSingleItem('entities')} disabled={loadingField === 'entities'} className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 transition-colors border border-indigo-500/20">
+                             {loadingField === 'entities' ? <RefreshCw size={16} className="animate-spin" /> : <Map size={16} />}
                         </button>
-                        <div className="w-px h-4 bg-zinc-800"></div>
-                        <button onClick={() => handleAddWorldListItem('entities')} className="text-zinc-400 hover:text-zinc-200 text-xs font-medium flex items-center gap-1">
-                             <Plus size={12} /> Thêm Thực thể
+                        <div className="w-px h-8 bg-zinc-800 mx-1"></div>
+                        <button onClick={() => handleAddWorldListItem('entities')} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors">
+                             <Plus size={16} />
                         </button>
                     </div>
                  </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {worldInfo.entities.map((entity, idx) => (
-                         <div key={idx} className="relative group animate-fade-in">
+                         <div key={idx} className="relative group animate-fade-in bg-zinc-900/40 p-3 rounded-xl border border-white/5 space-y-2">
+                             <div className="flex items-center gap-2">
+                                <input 
+                                    type="text" 
+                                    value={entity.name} 
+                                    onChange={(e) => handleEditWorldListItem('entities', idx, 'name', e.target.value)} 
+                                    placeholder="Tên thực thể..." 
+                                    className="flex-1 bg-zinc-950/50 border border-white/10 rounded-md px-3 py-1.5 text-sm font-medium focus:border-zinc-500 outline-none text-zinc-200"
+                                />
+                                <button onClick={() => handleRemoveWorldListItem('entities', idx)} className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
                             <textarea
-                                value={entity}
-                                onChange={(e) => handleEditWorldListItem('entities', idx, e.target.value)}
+                                value={entity.description}
+                                onChange={(e) => handleEditWorldListItem('entities', idx, 'description', e.target.value)}
                                 placeholder="Mô tả thực thể..."
-                                className="w-full bg-zinc-900/60 border border-white/10 rounded-lg pl-4 pr-10 py-3 text-sm focus:border-zinc-500 outline-none transition-colors resize-y min-h-[100px] text-zinc-200"
+                                className="w-full bg-zinc-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-zinc-500 outline-none transition-colors resize-y min-h-[100px] text-zinc-300"
                             />
-                            <button onClick={() => handleRemoveWorldListItem('entities', idx)} className="absolute top-2 right-2 p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
-                                <Trash2 size={14} />
-                            </button>
                          </div>
                     ))}
                      {worldInfo.entities.length === 0 && (

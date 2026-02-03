@@ -41,6 +41,12 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   thinkingLevel: ThinkingLevel.MAXIMUM,
 };
 
+// New Data Structure for structured items
+export interface DataItem {
+  name: string;       // Title/Name
+  description: string; // Content/Body
+}
+
 export interface Persona {
   name: string;
   age: string;
@@ -48,7 +54,7 @@ export interface Persona {
   personality: string;
   background: string;
   appearance: string;
-  skills: string[];
+  skills: DataItem[]; // Changed from string[] to DataItem[]
   goals: string;
   hobbies: string;
 }
@@ -69,8 +75,8 @@ export interface WorldInfo {
   genre: string;
   worldName: string;
   worldContext: string;
-  npcs: string[];
-  entities: string[];
+  npcs: DataItem[];      // Changed from string[] to DataItem[]
+  entities: DataItem[];  // Changed from string[] to DataItem[]
 }
 
 export interface UniversePayload {
