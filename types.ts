@@ -14,6 +14,33 @@ export enum AppTheme {
   ROYAL = 'ROYAL',
 }
 
+export enum ThinkingLevel {
+  AUTO = 'AUTO',
+  MINIMUM = 'MINIMUM',
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  MAXIMUM = 'MAXIMUM',
+}
+
+export interface AIConfig {
+  contextSize: number;
+  temperature: number;
+  topK: number;
+  topP: number;
+  maxOutputTokens: number;
+  thinkingLevel: ThinkingLevel;
+}
+
+export const DEFAULT_AI_CONFIG: AIConfig = {
+  contextSize: 2000000,
+  temperature: 1.15,
+  topK: 500,
+  topP: 0.95,
+  maxOutputTokens: 65000,
+  thinkingLevel: ThinkingLevel.AUTO,
+};
+
 export interface Persona {
   name: string;
   age: string;

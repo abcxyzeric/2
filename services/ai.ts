@@ -1,5 +1,5 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { Persona } from "../types";
+import { Persona, AIConfig, ThinkingLevel } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -21,22 +21,50 @@ QUY TẮC TUYỆT ĐỐI:
 3. Nếu người dùng đã nhập liệu, hãy MỞ RỘNG và TRAU CHUỐT nó, KHÔNG thay thế hoàn toàn ý tưởng gốc.
 4. Giữ văn phong huyền bí, thanh lịch hoặc phù hợp với bối cảnh nhân vật.`;
 
+const getThinkingBudget = (level: ThinkingLevel): number => {
+  switch (level) {
+    case ThinkingLevel.MINIMUM: return 1024;
+    case ThinkingLevel.LOW: return 4096;
+    case ThinkingLevel.MEDIUM: return 8192;
+    case ThinkingLevel.HIGH: return 16384;
+    case ThinkingLevel.MAXIMUM: return 32768;
+    case ThinkingLevel.AUTO: 
+    default: return 0;
+  }
+};
+
+const buildGenerationConfig = (aiConfig: AIConfig) => {
+  const thinkingBudget = getThinkingBudget(aiConfig.thinkingLevel);
+  
+  return {
+    temperature: aiConfig.temperature,
+    topK: aiConfig.topK,
+    topP: aiConfig.topP,
+    maxOutputTokens: aiConfig.maxOutputTokens,
+    responseMimeType: "text/plain", // Default to text unless JSON is needed
+    safetySettings: safetySettings,
+    systemInstruction: SYSTEM_INSTRUCTION,
+    thinkingConfig: { thinkingBudget: thinkingBudget },
+  };
+};
+
 /**
  * Tạo toàn bộ nhân vật từ một ý tưởng ngắn
  */
-export const generateFullPersonaFromIdea = async (idea: string): Promise<Persona | null> => {
+export const generateFullPersonaFromIdea = async (idea: string, aiConfig: AIConfig): Promise<Persona | null> => {
   try {
     const prompt = `Hãy tạo một hồ sơ nhân vật đầy đủ dựa trên ý tưởng sau: "${idea}".
     Trả về kết quả dưới dạng JSON (không dùng Markdown code block) với các trường sau:
     name, age, gender, personality, background, appearance, skills (mảng chuỗi), goals, hobbies.`;
 
+    const config = buildGenerationConfig(aiConfig);
+
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        ...config,
         responseMimeType: "application/json",
-        safetySettings: safetySettings,
       },
     });
 
@@ -56,7 +84,8 @@ export const generateFullPersonaFromIdea = async (idea: string): Promise<Persona
 export const generatePersonaField = async (
   currentPersona: Persona,
   targetField: keyof Persona,
-  currentValue: string
+  currentValue: string,
+  aiConfig: AIConfig
 ): Promise<string> => {
   try {
     const context = `
@@ -77,13 +106,12 @@ export const generatePersonaField = async (
     - Đối với trường 'skills': Chỉ gợi ý 1 kỹ năng đặc biệt hoặc mô tả ngắn gọn về khả năng.
     `;
 
+    const config = buildGenerationConfig(aiConfig);
+
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: context,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        safetySettings: safetySettings,
-      },
+      config: config,
     });
 
     return response.text || "";

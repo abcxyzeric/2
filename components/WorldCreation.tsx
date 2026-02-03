@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { ArrowLeft, Sparkles, Plus, Trash2, Save, SendHorizontal, Wand2 } from 'lucide-react';
 import Button from './Button';
 import Toast from './Toast';
-import { AppView, Persona, INITIAL_PERSONA } from '../types';
+import { AppView, Persona, INITIAL_PERSONA, AIConfig } from '../types';
 import { generateFullPersonaFromIdea, generatePersonaField } from '../services/ai';
 
 interface WorldCreationProps {
   onNavigate: (view: AppView) => void;
+  aiConfig: AIConfig;
 }
 
-const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate }) => {
+const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate, aiConfig }) => {
   const [persona, setPersona] = useState<Persona>(INITIAL_PERSONA);
   const [ideaInput, setIdeaInput] = useState('');
   const [loadingField, setLoadingField] = useState<string | null>(null);
@@ -53,7 +54,7 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate }) => {
     
     setIsGeneratingFull(true);
     try {
-      const result = await generateFullPersonaFromIdea(ideaInput);
+      const result = await generateFullPersonaFromIdea(ideaInput, aiConfig);
       if (result) {
         setPersona(result);
         showToast("Đã tạo hồ sơ nhân vật thành công!", "success");
@@ -79,7 +80,7 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate }) => {
       // TypeScript trick to access dynamic property safely if it's a string
       const currentValue = typeof persona[field] === 'string' ? persona[field] as string : '';
       
-      const result = await generatePersonaField(persona, field, currentValue);
+      const result = await generatePersonaField(persona, field, currentValue, aiConfig);
       
       if (result) {
         handleChange(field, result);
@@ -103,7 +104,7 @@ const WorldCreation: React.FC<WorldCreationProps> = ({ onNavigate }) => {
 
     setLoadingField(fieldId);
     try {
-      const result = await generatePersonaField(persona, 'skills', skillToImprove);
+      const result = await generatePersonaField(persona, 'skills', skillToImprove, aiConfig);
       if (result) {
         handleEditSkill(index, result);
         showToast("Đã cập nhật kỹ năng", "success");

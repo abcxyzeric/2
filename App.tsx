@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppView, AppTheme } from './types';
+import { AppView, AppTheme, AIConfig, DEFAULT_AI_CONFIG } from './types';
 import MainMenu from './components/MainMenu';
 import Gameplay from './components/Gameplay';
 import WorldCreation from './components/WorldCreation';
@@ -8,6 +8,7 @@ import Settings from './components/Settings';
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.MAIN_MENU);
   const [currentTheme, setCurrentTheme] = useState<AppTheme>(AppTheme.DEFAULT);
+  const [aiConfig, setAiConfig] = useState<AIConfig>(DEFAULT_AI_CONFIG);
 
   // Render the current view based on state
   const renderView = () => {
@@ -17,13 +18,15 @@ const App: React.FC = () => {
       case AppView.GAMEPLAY:
         return <Gameplay onNavigate={setCurrentView} />;
       case AppView.WORLD_CREATION:
-        return <WorldCreation onNavigate={setCurrentView} />;
+        return <WorldCreation onNavigate={setCurrentView} aiConfig={aiConfig} />;
       case AppView.SETTINGS:
         return (
           <Settings 
             onNavigate={setCurrentView} 
             currentTheme={currentTheme}
             onSetTheme={setCurrentTheme}
+            aiConfig={aiConfig}
+            onSetAiConfig={setAiConfig}
           />
         );
       default:
