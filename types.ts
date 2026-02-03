@@ -5,6 +5,15 @@ export enum AppView {
   SETTINGS = 'SETTINGS',
 }
 
+export enum AppTheme {
+  DEFAULT = 'DEFAULT',
+  MIDNIGHT = 'MIDNIGHT',
+  FOREST = 'FOREST',
+  CRIMSON = 'CRIMSON',
+  AMBER = 'AMBER',
+  ROYAL = 'ROYAL',
+}
+
 export interface Persona {
   name: string;
   age: string;
