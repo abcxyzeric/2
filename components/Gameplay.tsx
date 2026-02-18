@@ -119,17 +119,53 @@ const Gameplay: React.FC<GameplayProps> = ({
     reader.onload = (event) => {
       try {
         const json = JSON.parse(event.target?.result as string);
-        // Simple validation check
-        if (json.prompts && json.prompt_order) {
-          setGameSession(prev => ({ ...prev, activePreset: json }));
+        
+        // --- DATA NORMALIZATION START ---
+        // 1. Normalize Prompts (Convert Object/Dict to Array if needed)
+        let normalizedPrompts: any[] = [];
+        if (Array.isArray(json.prompts)) {
+            normalizedPrompts = json.prompts;
+        } else if (typeof json.prompts === 'object' && json.prompts !== null) {
+            // Handle SillyTavern Object-style prompts { "main": { ... }, "nsfw": { ... } }
+            normalizedPrompts = Object.entries(json.prompts).map(([key, val]: [string, any]) => ({
+                ...val,
+                identifier: key // Inject the key as identifier
+            }));
+        }
+
+        // 2. Normalize Prompt Order (Flatten nested array if needed)
+        let normalizedOrder: any[] = [];
+        if (Array.isArray(json.prompt_order)) {
+            const firstItem = json.prompt_order[0];
+            // Check if it's the nested ST structure [{ character_id: '...', order: [...] }]
+            if (firstItem && typeof firstItem === 'object' && 'order' in firstItem && Array.isArray(firstItem.order)) {
+                normalizedOrder = firstItem.order;
+            } else {
+                // It's already a flat list or empty
+                normalizedOrder = json.prompt_order;
+            }
+        }
+        // --- DATA NORMALIZATION END ---
+
+        // 3. Construct Final Preset Object
+        const finalPreset: Preset = {
+            ...json,
+            prompts: normalizedPrompts,
+            prompt_order: normalizedOrder as any // Cast to satisfy simple type
+        };
+
+        // Validation
+        if (finalPreset.prompts && finalPreset.prompt_order) {
+          setGameSession(prev => ({ ...prev, activePreset: finalPreset }));
           setToast({ message: `Đã nạp Preset: ${json.name || "Custom"}`, type: "success" });
-          // Don't close drawer, let user inspect
+          // Open Inspector to show result
           setActiveTab('PRESET');
         } else {
-          setToast({ message: "Cấu trúc file Preset không hợp lệ.", type: "error" });
+          setToast({ message: "Cấu trúc file Preset không hợp lệ (Thiếu prompts/order).", type: "error" });
         }
       } catch (err) {
-        setToast({ message: "Lỗi đọc file JSON.", type: "error" });
+        console.error("Preset Import Error:", err);
+        setToast({ message: "Lỗi đọc file JSON hoặc định dạng sai.", type: "error" });
       }
     };
     reader.readAsText(file);
@@ -156,18 +192,10 @@ const Gameplay: React.FC<GameplayProps> = ({
       }
   };
 
-  // Helper to get order list safely
+  // Helper to get order list safely (now assumes normalized data)
   const getPromptOrderList = () => {
     if (!gameSession.activePreset) return [];
-    const orderRaw = gameSession.activePreset.prompt_order;
-    if (Array.isArray(orderRaw)) {
-        const firstItem = orderRaw[0] as any;
-        if (firstItem && 'order' in firstItem && Array.isArray(firstItem.order)) {
-            return firstItem.order;
-        }
-        return orderRaw;
-    }
-    return [];
+    return gameSession.activePreset.prompt_order as any[] || [];
   };
 
   const promptOrderList = getPromptOrderList();
@@ -413,7 +441,9 @@ const Gameplay: React.FC<GameplayProps> = ({
                             
                             <div className="space-y-1">
                                 {promptOrderList.map((item: any, idx: number) => {
+                                    // Look up in our normalized prompt list
                                     const promptDef = allPrompts.find(p => p.identifier === item.identifier);
+                                    // Use identifier as fallback label if name is missing
                                     const label = promptDef?.name || getPromptLabel(item.identifier);
                                     
                                     return (
